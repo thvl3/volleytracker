@@ -1,11 +1,13 @@
 from flask import Blueprint, request, jsonify
 from models.team import Team
 from services.auth_service import AuthService
+from functools import wraps
 
 team_bp = Blueprint('team', __name__)
 
 # Auth middleware
 def require_auth(f):
+    @wraps(f)  # Add this wraps decorator
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):

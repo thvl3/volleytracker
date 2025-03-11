@@ -7,7 +7,7 @@ const Footer = () => {
       <Typography variant="body2" color="textSecondary" align="center">
         {'© '}
         <Link color="inherit" href="/">
-          VolleyTracker
+          Ethan Hulse
         </Link>{' '}
         {new Date().getFullYear()}
       </Typography>

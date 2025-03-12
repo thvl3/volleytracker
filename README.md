@@ -68,12 +68,12 @@ volleytracker/
 
 ### AWS Deployment
 
-1. Set up an EC2 instance with Amazon Linux 2.
+1. Set up an EC2 instance with a recent version of Ubuntu.
 
 2. Install dependencies:
    ```
-   sudo yum update -y
-   sudo yum install -y python3 python3-pip nginx
+   sudo apt update
+   sudo apt-get install python3 python3-pip nginx nodejs npm git
    ```
 
 3. Clone the repository:

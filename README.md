@@ -78,7 +78,7 @@ volleytracker/
 
 3. Clone the repository:
    ```
-   git clone https://github.com/your-username/volleytracker.git
+   git clone https://github.com/thvl3/volleytracker.git
    cd volleytracker
    ```
 

@@ -13,8 +13,28 @@ A web application for tracking volleyball tournaments, displaying live brackets,
 ## Quick Start with Docker
 
 1. Set up environment variables:
-   - Create `.env` file in the `backend` directory with your configuration
-   - Create `.env` file in the `frontend` directory with your configuration
+   - Create `.env` file in the `backend` directory with your configuration:
+     ```
+     DEBUG=True
+     SECRET_KEY=your_secret_key_here
+     ADMIN_PASSWORD=your_admin_password_here
+     JWT_SECRET_KEY=your_jwt_secret_here
+     
+     # For local DynamoDB
+     DYNAMODB_ENDPOINT=http://localhost:8000
+     AWS_REGION=us-east-1
+     
+     # For production DynamoDB
+     # DYNAMODB_ENDPOINT=https://dynamodb.us-east-1.amazonaws.com
+     # AWS_REGION=us-east-1
+     # AWS_ACCESS_KEY_ID=your_access_key
+     # AWS_SECRET_ACCESS_KEY=your_secret_key
+     ```
+   - Create `.env` file in the `frontend` directory with your configuration:
+     ```
+     REACT_APP_API_URL=http://localhost:5000/api
+     REACT_APP_ENV=development
+     ```
 
 2. Build and run the Docker container:
    ```bash

@@ -10,6 +10,16 @@ A web application for tracking volleyball tournaments, displaying live brackets,
 - Support for different tournament types (single elimination, etc.)
 - Court assignment and scheduling
 
+## Quick Start with Docker
+
+1. Build and run the Docker container:
+   ```bash
+   docker build -t volleytracker .
+   docker run -p 80:80 volleytracker
+   ```
+
+2. Access the application at http://localhost
+
 ## Project Structure
 
 ```

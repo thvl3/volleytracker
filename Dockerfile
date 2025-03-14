@@ -29,3 +29,10 @@ EXPOSE 5000
 
 # Run the application
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "backend.wsgi:app"]
+
+# Nginx stage
+FROM nginx:alpine
+COPY --from=frontend-build /app/frontend/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

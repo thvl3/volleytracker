@@ -49,28 +49,7 @@ Alternatively you can use curl to test the API:
 curl -X GET http://localhost:5000/api/tournaments
 ```
 
-## Project Structure
-
-```
-volleytracker/
-├── backend/              # Flask API
-│   ├── app.py            # Main application entry point
-│   ├── config.py         # Configuration settings
-│   ├── controllers/      # API endpoint handlers
-│   ├── models/           # Data models
-│   ├── services/         # Business logic
-│   └── requirements.txt  # Python dependencies
-├── frontend/             # React frontend
-│   ├── public/
-│   ├── src/
-│   │   ├── components/   # Reusable UI components
-│   │   ├── pages/        # Page components
-│   │   ├── api/          # API client code
-│   │   ├── utils/        # Utility functions
-│   │   └── App.jsx       # Main React component
-│   └── package.json
-└── docker-compose.yml    # For development
-```
+# Manual Setup
 
 ## Backend Setup
 
@@ -235,3 +214,24 @@ volleytracker/
 - Store secrets in AWS Secrets Manager
 - Enable HTTPS using AWS Certificate Manager
 - Set up proper IAM roles for DynamoDB access
+
+```
+volleytracker/
+├── backend/              # Flask API
+│   ├── app.py            # Main application entry point
+│   ├── config.py         # Configuration settings
+│   ├── controllers/      # API endpoint handlers
+│   ├── models/           # Data models
+│   ├── services/         # Business logic
+│   └── requirements.txt  # Python dependencies
+├── frontend/             # React frontend
+│   ├── public/
+│   ├── src/
+│   │   ├── components/   # Reusable UI components
+│   │   ├── pages/        # Page components
+│   │   ├── api/          # API client code
+│   │   ├── utils/        # Utility functions
+│   │   └── App.jsx       # Main React component
+│   └── package.json
+└── docker-compose.yml    # For development
+```

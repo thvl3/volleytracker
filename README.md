@@ -12,13 +12,22 @@ A web application for tracking volleyball tournaments, displaying live brackets,
 
 ## Quick Start with Docker
 
-1. Build and run the Docker container:
+1. Set up environment variables:
+   - Create `.env` file in the `backend` directory with your configuration
+   - Create `.env` file in the `frontend` directory with your configuration
+
+2. Build and run the Docker container:
    ```bash
    docker build -t volleytracker .
    docker run -p 80:80 volleytracker
    ```
 
-2. Access the application at http://localhost
+3. Access the application at http://localhost
+
+Alternatively you can use curl to test the API:
+```bash
+curl -X GET http://localhost:5000/api/tournaments
+```
 
 ## Project Structure
 

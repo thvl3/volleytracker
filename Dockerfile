@@ -4,6 +4,8 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
 COPY frontend/ ./
+# Copy frontend .env file if it exists
+COPY frontend/.env* ./
 RUN npm run build
 
 # Backend stage
@@ -19,6 +21,9 @@ COPY backend/ ./backend/
 
 # Copy built frontend from previous stage
 COPY --from=frontend-build /app/frontend/build ./backend/static/
+
+# Copy backend .env file if it exists
+COPY backend/.env* ./
 
 # Set environment variables
 ENV FLASK_APP=backend/app.py

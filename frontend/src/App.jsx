@@ -18,6 +18,8 @@ import AdminTournamentsPage from './pages/Admin/AdminTournamentsPage';
 import AdminTeamsPage from './pages/Admin/AdminTeamsPage';
 import AdminMatchesPage from './pages/Admin/AdminMatchesPage';
 import AdminScoringPage from './pages/Admin/AdminScoringPage';
+import AdminPoolScoringPage from './pages/Admin/AdminPoolScoringPage';
+import AdminLocationsPage from './pages/Admin/AdminLocationsPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Auth context & utils
@@ -75,6 +77,14 @@ function App() {
                 } 
               />
               <Route 
+                path="/admin/locations" 
+                element={
+                  <ProtectedRoute>
+                    <AdminLocationsPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
                 path="/admin/tournaments/:tournamentId/teams" 
                 element={
                   <ProtectedRoute>
@@ -95,6 +105,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <AdminScoringPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/pool-matches/:matchId/scoring" 
+                element={
+                  <ProtectedRoute>
+                    <AdminPoolScoringPage />
                   </ProtectedRoute>
                 } 
               />

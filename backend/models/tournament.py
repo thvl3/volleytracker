@@ -101,19 +101,21 @@ class Tournament:
             raise ValueError(f"Tournament cannot have more than {self.max_teams} teams")
         
         # Calculate number of pools
-        if self.teams_per_pool <= 0:
+        # Convert any string or Decimal values to integers
+        teams_per_pool = int(self.teams_per_pool)
+        if teams_per_pool <= 0:
             raise ValueError("Teams per pool must be greater than 0")
         
-        num_pools = (num_teams + self.teams_per_pool - 1) // self.teams_per_pool
+        num_pools = (num_teams + teams_per_pool - 1) // teams_per_pool
         self.num_pools = num_pools
         
         # Update tournament status
         self.status = 'pool_play'
-        self.update()
+        Tournament.update(self)  # Use the class method instead of instance method
         
         # Create pools and assign teams
         pools = []
-        for i in range(num_pools):
+        for i in range(int(num_pools)):
             pool_name = f"Pool {chr(65 + i)}"  # Pool A, Pool B, etc.
             pool = Pool.create(
                 tournament_id=self.tournament_id,
@@ -124,7 +126,7 @@ class Tournament:
         
         # Distribute teams evenly across pools
         for i, team_id in enumerate(team_ids):
-            pool_index = i % num_pools
+            pool_index = i % int(num_pools)
             pools[pool_index].add_team(team_id)
         
         return pools

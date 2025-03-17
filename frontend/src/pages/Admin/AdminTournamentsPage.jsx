@@ -29,13 +29,14 @@ import {
   Stack
 } from '@mui/material';
 import moment from 'moment';
-import { tournamentAPI } from '../../api/api';
+import { tournamentAPI, locationAPI } from '../../api/api';
 import Loading from '../../components/common/Loading';
 
 const AdminTournamentsPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [tournaments, setTournaments] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -44,6 +45,7 @@ const AdminTournamentsPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     location: '',
+    location_id: '',
     start_date: moment().format('YYYY-MM-DD'),
     end_date: moment().add(1, 'days').format('YYYY-MM-DD'),
     type: 'single_elimination'
@@ -54,19 +56,23 @@ const AdminTournamentsPage = () => {
   const [tournamentToDelete, setTournamentToDelete] = useState(null);
 
   useEffect(() => {
-    fetchTournaments();
+    fetchData();
   }, []);
 
-  const fetchTournaments = async () => {
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await tournamentAPI.getAll();
-      setTournaments(response.data);
-      setError('');
-    } catch (error) {
-      console.error('Failed to fetch tournaments:', error);
-      setError('Failed to load tournaments. Please try again.');
-    } finally {
+      const tournamentsResponse = await tournamentAPI.getAll();
+      setTournaments(tournamentsResponse.data);
+
+      // Fetch locations
+      const locationsResponse = await locationAPI.getAll();
+      setLocations(locationsResponse.data);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching data:', err);
+      setError('Failed to load data. Please try again later.');
       setLoading(false);
     }
   };
@@ -82,37 +88,34 @@ const AdminTournamentsPage = () => {
   const handleCreateTournament = async (e) => {
     e.preventDefault();
     
+    setLoading(true);
     try {
-      setLoading(true);
-      
-      const payload = {
+      // Convert dates to Unix timestamps
+      const data = {
         name: formData.name,
-        location: formData.location,
+        location: formData.location, // Legacy field
+        location_id: formData.location_id, // New field with location ID
         start_date: moment(formData.start_date).unix(),
+        end_date: formData.end_date ? moment(formData.end_date).unix() : null,
         type: formData.type
       };
       
-      if (formData.end_date) {
-        payload.end_date = moment(formData.end_date).unix();
-      }
+      await tournamentAPI.create(data);
+      fetchData();
       
-      await tournamentAPI.create(payload);
-      setIsFormOpen(false);
+      // Reset form and close dialog
       setFormData({
         name: '',
         location: '',
+        location_id: '',
         start_date: moment().format('YYYY-MM-DD'),
         end_date: moment().add(1, 'days').format('YYYY-MM-DD'),
         type: 'single_elimination'
       });
-      
-      // Refresh tournaments list
-      await fetchTournaments();
-      
-    } catch (error) {
-      console.error('Failed to create tournament:', error);
+      setIsFormOpen(false);
+    } catch (err) {
+      console.error('Error creating tournament:', err);
       setError('Failed to create tournament. Please try again.');
-    } finally {
       setLoading(false);
     }
   };
@@ -130,7 +133,7 @@ const AdminTournamentsPage = () => {
       await tournamentAPI.delete(tournamentToDelete.tournament_id);
       
       // Refresh tournaments list
-      await fetchTournaments();
+      await fetchData();
       
       // Close the dialog
       setDeleteDialogOpen(false);
@@ -149,7 +152,7 @@ const AdminTournamentsPage = () => {
       await tournamentAPI.update(tournamentId, { status: newStatus });
       
       // Refresh tournaments list
-      await fetchTournaments();
+      await fetchData();
     } catch (error) {
       console.error('Failed to update tournament status:', error);
       setError('Failed to update tournament status. Please try again.');
@@ -293,15 +296,36 @@ const AdminTournamentsPage = () => {
                 />
               </Grid>
               <Grid item xs={12}>
+                <FormControl fullWidth margin="dense">
+                  <InputLabel id="location-id-label">Gym Location</InputLabel>
+                  <Select
+                    labelId="location-id-label"
+                    id="location_id"
+                    name="location_id"
+                    value={formData.location_id}
+                    onChange={handleInputChange}
+                    label="Gym Location"
+                  >
+                    <MenuItem value="">-- Select a Location --</MenuItem>
+                    {locations.map(loc => (
+                      <MenuItem key={loc.location_id} value={loc.location_id}>
+                        {loc.name} ({loc.courts} courts)
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
                 <TextField
                   margin="dense"
                   id="location"
                   name="location"
-                  label="Location"
+                  label="Location Name (Legacy)"
                   type="text"
                   fullWidth
                   value={formData.location}
                   onChange={handleInputChange}
+                  helperText="Optional text description of location"
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

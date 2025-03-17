@@ -14,12 +14,13 @@ import {
   Paper
 } from '@mui/material';
 import Loading from '../../components/common/Loading';
-import { tournamentAPI, matchAPI } from '../../api/api';
+import { tournamentAPI, matchAPI, locationAPI } from '../../api/api';
 import moment from 'moment';
 
 const AdminDashboardPage = () => {
   const [tournaments, setTournaments] = useState([]);
   const [activeMatches, setActiveMatches] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,6 +36,15 @@ const AdminDashboardPage = () => {
           const activeId = activeTournaments[0].tournament_id;
           const matchesResponse = await matchAPI.getByTournament(activeId, 'in_progress');
           setActiveMatches(matchesResponse.data);
+        }
+
+        // Get locations
+        try {
+          const locationsResponse = await locationAPI.getAll();
+          setLocations(locationsResponse.data);
+        } catch (err) {
+          console.error('Failed to fetch locations:', err);
+          setLocations([]);
         }
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -156,6 +166,50 @@ const AdminDashboardPage = () => {
         <Grid item xs={12} md={5}>
           <Paper sx={{ p: 3, mb: 4 }}>
             <Typography variant="h5" gutterBottom>
+              Locations
+            </Typography>
+            
+            <Box sx={{ mb: 2 }}>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                component={Link} 
+                to="/admin/locations"
+                sx={{ mr: 2 }}
+              >
+                Manage Locations
+              </Button>
+            </Box>
+            
+            <Divider sx={{ my: 2 }} />
+            
+            {locations.length > 0 ? (
+              <Box>
+                <Typography variant="subtitle1" gutterBottom>
+                  You have {locations.length} volleyball locations registered
+                </Typography>
+                <Grid container spacing={1}>
+                  {locations.slice(0, 3).map(location => (
+                    <Grid item xs={12} key={location.location_id}>
+                      <Card variant="outlined" sx={{ mb: 1 }}>
+                        <CardContent sx={{ py: 1 }}>
+                          <Typography variant="subtitle1">{location.name}</Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            {location.courts} courts | Capacity: {location.capacity || 'N/A'}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            ) : (
+              <Typography>No locations found. Add some to assign for tournaments!</Typography>
+            )}
+          </Paper>
+
+          <Paper sx={{ p: 3, mb: 4 }}>
+            <Typography variant="h5" gutterBottom>
               Active Matches
             </Typography>
             
@@ -211,10 +265,19 @@ const AdminDashboardPage = () => {
             <Button 
               fullWidth 
               variant="outlined" 
+              sx={{ mb: 1 }}
               component={Link}
               to="/tournaments"
             >
               View All Tournaments
+            </Button>
+            <Button 
+              fullWidth 
+              variant="outlined" 
+              component={Link}
+              to="/admin/locations"
+            >
+              Manage Locations
             </Button>
           </Paper>
         </Grid>

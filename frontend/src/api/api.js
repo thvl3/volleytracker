@@ -56,6 +56,11 @@ export const tournamentAPI = {
   update: (id, data) => api.put(`/tournaments/${id}`, data),
   delete: (id) => api.delete(`/tournaments/${id}`),
   createBracket: (id, teamIds) => api.post(`/tournaments/${id}/bracket`, { team_ids: teamIds }),
+  createPools: (id) => api.post(`/tournaments/${id}/pools`),
+  getPools: (id) => api.get(`/tournaments/${id}/pools`),
+  getPoolRankings: (id) => api.get(`/tournaments/${id}/rankings`),
+  completePoolPlay: (id) => api.post(`/tournaments/${id}/complete-pool-play`),
+  createBracketFromPools: (id) => api.post(`/tournaments/${id}/create-bracket-from-pools`),
 };
 
 // Team API
@@ -79,6 +84,33 @@ export const matchAPI = {
     api.post(`/matches/${id}/score`, { score_team1, score_team2, complete }),
   updateCourt: (id, court) => api.post(`/matches/${id}/court`, { court }),
   updateSchedule: (id, scheduledTime) => api.post(`/matches/${id}/schedule`, { scheduled_time: scheduledTime }),
+};
+
+// Pool API - New
+export const poolAPI = {
+  getById: (id) => api.get(`/pools/${id}`),
+  getMatches: (id) => api.get(`/pools/${id}/matches`),
+  getRankings: (id) => api.get(`/pools/${id}/rankings`),
+  updateTeams: (id, teamIds) => api.put(`/pools/${id}/teams`, { team_ids: teamIds }),
+  generateSchedule: (id) => api.post(`/pools/${id}/schedule`),
+  initializeStandings: (id) => api.post(`/pools/${id}/initialize-standings`),
+};
+
+// Pool Match API - New
+export const poolMatchAPI = {
+  getById: (id) => api.get(`/pool-matches/${id}`),
+  updateScore: (id, setNumber, team1Score, team2Score) => 
+    api.put(`/pool-matches/${id}/score`, { set_number: setNumber, team1_score: team1Score, team2_score: team2Score }),
+  updateSchedule: (id, data) => api.put(`/pool-matches/${id}/schedule`, data),
+};
+
+// Location API - New
+export const locationAPI = {
+  getAll: () => api.get('/locations'),
+  getById: (id) => api.get(`/locations/${id}`),
+  create: (data) => api.post('/locations', data),
+  update: (id, data) => api.put(`/locations/${id}`, data),
+  delete: (id) => api.delete(`/locations/${id}`),
 };
 
 export default api;

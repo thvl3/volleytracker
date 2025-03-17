@@ -27,6 +27,12 @@ function Header() {
               <Button color="inherit" component={Link} to="/admin">
                 Admin Dashboard
               </Button>
+              <Button color="inherit" component={Link} to="/admin/tournaments">
+                Tournaments
+              </Button>
+              <Button color="inherit" component={Link} to="/admin/locations">
+                Gym Locations
+              </Button>
               <Button color="inherit" onClick={handleLogout}>
                 Logout
               </Button>

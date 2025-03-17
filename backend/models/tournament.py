@@ -6,14 +6,28 @@ from boto3.dynamodb.conditions import Attr
 
 class Tournament:
     def __init__(self, tournament_id=None, name=None, start_date=None, end_date=None,
-                 location=None, status='upcoming', type='single_elimination'):
+                 location=None, status='upcoming', type='single_elimination', 
+                 location_id=None, min_teams=8, max_teams=32, 
+                 has_pool_play=False, pool_play_complete=False,
+                 num_pools=0, teams_per_pool=4, pool_sets=2,
+                 bracket_size=None, bracket_sets=3):
         self.tournament_id = tournament_id or str(uuid.uuid4())
         self.name = name
         self.start_date = start_date or int(time.time())
         self.end_date = end_date
-        self.location = location
-        self.status = status  # 'upcoming', 'in_progress', 'completed'
+        self.location = location  # Legacy field
+        self.location_id = location_id  # New field referencing the Location model
+        self.status = status  # 'upcoming', 'in_progress', 'pool_play', 'bracket_play', 'completed'
         self.type = type  # 'single_elimination', 'double_elimination', 'round_robin'
+        self.min_teams = min_teams  # Minimum number of teams (8)
+        self.max_teams = max_teams  # Maximum number of teams (32)
+        self.has_pool_play = has_pool_play  # Whether the tournament includes pool play
+        self.pool_play_complete = pool_play_complete  # Whether pool play is completed
+        self.num_pools = num_pools  # Number of pools (calculated based on team count)
+        self.teams_per_pool = teams_per_pool  # Teams per pool (default 4)
+        self.pool_sets = pool_sets  # Number of sets in pool play matches (default 2)
+        self.bracket_size = bracket_size  # Size of the bracket (4, 8, or 12 teams)
+        self.bracket_sets = bracket_sets  # Number of sets in bracket matches (default best 2 of 3)
     
     @classmethod
     def create(cls, tournament):
@@ -22,15 +36,7 @@ class Tournament:
         tournament.tournament_id = tournament_id
         
         # Create item with tournament_id as the primary key
-        item = {
-            'tournament_id': tournament_id,
-            'name': tournament.name,
-            'start_date': tournament.start_date,
-            'end_date': tournament.end_date,
-            'location': tournament.location,
-            'type': tournament.type,
-            'status': tournament.status
-        }
+        item = tournament.to_dict()
         
         db_service.tournaments_table.put_item(Item=item)
         return tournament
@@ -57,32 +63,14 @@ class Tournament:
         
         tournaments = []
         for item in response.get('Items', []):
-            # Clean any keys that aren't part of the Tournament model
-            tournament_data = {
-                'tournament_id': item.get('tournament_id'),
-                'name': item.get('name'),
-                'start_date': item.get('start_date'),
-                'end_date': item.get('end_date'),
-                'location': item.get('location'),
-                'type': item.get('type'),
-                'status': item.get('status')
-            }
-            tournaments.append(cls(**tournament_data))
+            tournaments.append(cls(**item))
             
         return tournaments
 
     @classmethod
     def update(cls, tournament):
         """Update a tournament"""
-        item = {
-            'tournament_id': tournament.tournament_id,
-            'name': tournament.name,
-            'start_date': tournament.start_date,
-            'end_date': tournament.end_date,
-            'location': tournament.location,
-            'type': tournament.type,
-            'status': tournament.status
-        }
+        item = tournament.to_dict()
         
         db_service.tournaments_table.put_item(Item=item)
         return tournament
@@ -94,6 +82,52 @@ class Tournament:
         )
         # Note: In a real application, you'd want to handle deletion of related 
         # teams and matches here as well, or implement a cascading delete function
+    
+    def create_pools(self, team_ids):
+        """
+        Create pools for the tournament based on the list of team IDs
+        This is used for the initial pool play phase
+        """
+        if not self.has_pool_play:
+            raise ValueError("This tournament does not have pool play enabled")
+        
+        from models.pool import Pool
+        
+        # Calculate number of pools needed based on team count
+        num_teams = len(team_ids)
+        if num_teams < self.min_teams:
+            raise ValueError(f"Tournament requires at least {self.min_teams} teams")
+        if num_teams > self.max_teams:
+            raise ValueError(f"Tournament cannot have more than {self.max_teams} teams")
+        
+        # Calculate number of pools
+        if self.teams_per_pool <= 0:
+            raise ValueError("Teams per pool must be greater than 0")
+        
+        num_pools = (num_teams + self.teams_per_pool - 1) // self.teams_per_pool
+        self.num_pools = num_pools
+        
+        # Update tournament status
+        self.status = 'pool_play'
+        self.update()
+        
+        # Create pools and assign teams
+        pools = []
+        for i in range(num_pools):
+            pool_name = f"Pool {chr(65 + i)}"  # Pool A, Pool B, etc.
+            pool = Pool.create(
+                tournament_id=self.tournament_id,
+                name=pool_name,
+                location_id=self.location_id
+            )
+            pools.append(pool)
+        
+        # Distribute teams evenly across pools
+        for i, team_id in enumerate(team_ids):
+            pool_index = i % num_pools
+            pools[pool_index].add_team(team_id)
+        
+        return pools
         
     def create_bracket(self, team_ids):
         """
@@ -102,6 +136,10 @@ class Tournament:
         """
         if self.type != 'single_elimination':
             raise NotImplementedError(f"Tournament type {self.type} not implemented yet")
+        
+        # Validate bracket size
+        if self.bracket_size and len(team_ids) != self.bracket_size:
+            raise ValueError(f"Expected {self.bracket_size} teams for bracket, got {len(team_ids)}")
         
         # Ensure even number of teams by adding a "bye"
         if len(team_ids) % 2 != 0:
@@ -119,7 +157,8 @@ class Tournament:
         # Create final match first
         final_match = Match.create(
             tournament_id=self.tournament_id,
-            round_number=num_rounds
+            round_number=num_rounds,
+            location_id=self.location_id
         )
         matches_by_round[num_rounds] = [final_match]
         
@@ -132,7 +171,8 @@ class Tournament:
                     child_match = Match.create(
                         tournament_id=self.tournament_id,
                         next_match_id=parent_match.match_id,
-                        round_number=r
+                        round_number=r,
+                        location_id=self.location_id
                     )
                     matches_by_round[r].append(child_match)
         
@@ -169,8 +209,8 @@ class Tournament:
             
             match.update()
         
-        # Set tournament to in_progress
-        self.status = 'in_progress'
+        # Update tournament status
+        self.status = 'bracket_play'
         Tournament.update(self)
         
         # Return all matches by round
@@ -201,6 +241,23 @@ class Tournament:
         
         return result
     
+    def complete_pool_play(self):
+        """Mark pool play as complete and prepare for bracket play"""
+        if not self.has_pool_play:
+            raise ValueError("This tournament does not have pool play")
+            
+        self.pool_play_complete = True
+        self.update()
+        
+        return self
+    
+    def complete_tournament(self):
+        """Mark the tournament as completed"""
+        self.status = 'completed'
+        self.update()
+        
+        return self
+    
     def to_dict(self):
         """Convert tournament to dictionary"""
         return {
@@ -209,6 +266,16 @@ class Tournament:
             'start_date': self.start_date,
             'end_date': self.end_date,
             'location': self.location,
+            'location_id': self.location_id,
             'status': self.status,
-            'type': self.type
+            'type': self.type,
+            'min_teams': self.min_teams,
+            'max_teams': self.max_teams,
+            'has_pool_play': self.has_pool_play,
+            'pool_play_complete': self.pool_play_complete,
+            'num_pools': self.num_pools,
+            'teams_per_pool': self.teams_per_pool,
+            'pool_sets': self.pool_sets,
+            'bracket_size': self.bracket_size,
+            'bracket_sets': self.bracket_sets
         }

@@ -8,6 +8,9 @@ from controllers.auth_controller import auth_bp
 from controllers.match_controller import match_bp
 from controllers.team_controller import team_bp
 from controllers.tournament_controller import tournament_bp
+from controllers.location_controller import location_controller
+from controllers.pool_controller import pool_controller
+from controllers.pool_match_controller import pool_match_controller
 
 app = Flask(__name__, static_folder='../frontend/build')
 app.config.from_object(Config)
@@ -20,6 +23,9 @@ app.register_blueprint(auth_bp, url_prefix='/api/auth')
 app.register_blueprint(match_bp, url_prefix='/api/matches')
 app.register_blueprint(team_bp, url_prefix='/api/teams')
 app.register_blueprint(tournament_bp, url_prefix='/api/tournaments')
+app.register_blueprint(location_controller, url_prefix='/api')
+app.register_blueprint(pool_controller, url_prefix='/api')
+app.register_blueprint(pool_match_controller, url_prefix='/api')
 
 # Serve React App
 @app.route('/', defaults={'path': ''})

@@ -12,7 +12,7 @@ import {
   Chip
 } from '@mui/material';
 import Loading from '../components/common/Loading';
-import { tournamentAPI } from '../api/api';
+import { tournamentAPI } from '../api';
 import moment from 'moment';
 
 const statusColors = {
@@ -28,8 +28,8 @@ const TournamentListPage = () => {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await tournamentAPI.getAll();
-        setTournaments(response.data);
+        const tournaments = await tournamentAPI.getAllTournaments();
+        setTournaments(tournaments);
       } catch (error) {
         console.error('Failed to fetch tournaments:', error);
       } finally {

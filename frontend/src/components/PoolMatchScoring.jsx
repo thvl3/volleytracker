@@ -4,281 +4,329 @@ import { poolMatchAPI } from '../api/api';
 import {
   Box, Button, Typography, TextField, Card, CardContent,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  CircularProgress, Alert, Snackbar, Paper, Grid
+  CircularProgress, Alert, Snackbar, Paper, Grid, CardHeader, Divider, Chip
 } from '@mui/material';
 import { formatDateTime, formatTeamName } from '../utils/format';
+import { 
+  Save as SaveIcon, 
+  SportsTennis as VolleyballIcon,
+  Timer as TimerIcon 
+} from '@mui/icons-material';
 
 /**
  * Component for scoring pool matches
  */
-const PoolMatchScoring = ({ matchId, onMatchComplete }) => {
-  const [match, setMatch] = useState(null);
-  const [loading, setLoading] = useState(true);
+const PoolMatchScoring = ({ match, onScoreUpdate }) => {
+  const [scores, setScores] = useState({
+    team1: Array(match?.num_sets || 2).fill(''),
+    team2: Array(match?.num_sets || 2).fill('')
+  });
+  
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [scoreInputs, setScoreInputs] = useState([]);
-  const [saving, setSaving] = useState(false);
-  const [notification, setNotification] = useState({ open: false, message: '', severity: 'success' });
+  const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
-  // Fetch match details
+  // Initialize scores from match data if available
   useEffect(() => {
-    const fetchMatch = async () => {
-      try {
-        setLoading(true);
-        const response = await poolMatchAPI.getById(matchId);
-        const matchData = response.data;
-        setMatch(matchData);
-        
-        // Initialize score inputs based on number of sets
-        initializeScoreInputs(matchData);
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching match:', err);
-        setError('Failed to load match. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchMatch();
-  }, [matchId]);
-
-  // Initialize score input fields based on match data
-  const initializeScoreInputs = (matchData) => {
-    const numSets = parseInt(matchData.num_sets) || 2;
-    const currentScores = {
-      team1: [...(matchData.scores_team1 || [])],
-      team2: [...(matchData.scores_team2 || [])]
-    };
-    
-    // Ensure arrays are padded to num_sets length
-    while (currentScores.team1.length < numSets) currentScores.team1.push('');
-    while (currentScores.team2.length < numSets) currentScores.team2.push('');
-    
-    setScoreInputs(
-      Array.from({ length: numSets }, (_, index) => ({
-        setNumber: index + 1,
-        team1Score: currentScores.team1[index] || '',
-        team2Score: currentScores.team2[index] || '',
-        complete: currentScores.team1[index] !== '' && currentScores.team2[index] !== '',
-      }))
-    );
-  };
-
-  // Handle score input changes
-  const handleScoreChange = (setIndex, team, value) => {
-    const newInputs = [...scoreInputs];
-    
-    // Only allow numeric input
-    if (value === '' || /^\d+$/.test(value)) {
-      newInputs[setIndex][`${team}Score`] = value;
-      setScoreInputs(newInputs);
-    }
-  };
-
-  // Save score for a specific set
-  const saveSetScore = async (setIndex) => {
-    const input = scoreInputs[setIndex];
-    const setNumber = input.setNumber;
-    const team1Score = parseInt(input.team1Score);
-    const team2Score = parseInt(input.team2Score);
-    
-    // Validate inputs
-    if (isNaN(team1Score) || isNaN(team2Score)) {
-      setNotification({
-        open: true,
-        message: 'Please enter valid scores for both teams.',
-        severity: 'error'
+    if (match && match.scores_team1 && match.scores_team2) {
+      setScores({
+        team1: [...match.scores_team1],
+        team2: [...match.scores_team2]
       });
+    }
+  }, [match]);
+  
+  const handleScoreChange = (team, setIndex, value) => {
+    // Only allow numbers
+    if (value !== '' && !/^\d+$/.test(value)) {
       return;
     }
     
+    // Create a deep copy of the scores object
+    const newScores = {
+      ...scores,
+      [team]: [...scores[team]]
+    };
+    
+    // Update the score for the specific set
+    newScores[team][setIndex] = value;
+    
+    setScores(newScores);
+  };
+  
+  const handleSubmitScore = async (setNumber) => {
+    // Validate scores for this set
+    const team1Score = parseInt(scores.team1[setNumber - 1], 10);
+    const team2Score = parseInt(scores.team2[setNumber - 1], 10);
+    
+    if (isNaN(team1Score) || isNaN(team2Score)) {
+      setError('Please enter valid scores for both teams');
+      return;
+    }
+    
+    // In volleyball, winning team should have at least 25 points (or 15 in the third set)
+    // and be ahead by at least 2 points
+    const minWinningScore = setNumber === 3 ? 15 : 25;
+    const maxScore = Math.max(team1Score, team2Score);
+    const minScore = Math.min(team1Score, team2Score);
+    
+    if (maxScore < minWinningScore) {
+      setError(`Winning team must have at least ${minWinningScore} points`);
+      return;
+    }
+    
+    if (maxScore - minScore < 2) {
+      setError('Winning team must be ahead by at least 2 points');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      setSaving(true);
-      await poolMatchAPI.updateScore(matchId, setNumber, team1Score, team2Score);
+      // Send score update to the server
+      const data = {
+        set_number: setNumber,
+        team1_score: team1Score,
+        team2_score: team2Score
+      };
       
-      // Mark this set as complete
-      const newInputs = [...scoreInputs];
-      newInputs[setIndex].complete = true;
-      setScoreInputs(newInputs);
+      const updatedMatch = await poolMatchAPI.updatePoolMatchScore(match.match_id, data);
       
-      // Refresh match data
-      const response = await poolMatchAPI.getById(matchId);
-      setMatch(response.data);
+      // Show success message
+      setSuccess(true);
       
-      setNotification({
-        open: true,
-        message: `Set ${setNumber} score saved successfully.`,
-        severity: 'success'
-      });
-      
-      // If all sets are complete, notify parent component
-      if (response.data.status === 'completed' && onMatchComplete) {
-        onMatchComplete(response.data);
+      // Call the parent callback with the updated match
+      if (onScoreUpdate) {
+        onScoreUpdate(updatedMatch);
       }
-      
     } catch (err) {
-      console.error('Error saving score:', err);
-      setNotification({
-        open: true,
-        message: 'Failed to save score. Please try again.',
-        severity: 'error'
-      });
+      console.error('Error updating score:', err);
+      setError(err.message || 'Failed to update score');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
-
-  // Handle notification close
-  const handleCloseNotification = () => {
-    setNotification({ ...notification, open: false });
+  
+  const getSetStatus = (setIndex) => {
+    if (!match || !match.scores_team1 || !match.scores_team2) {
+      return 'not_played';
+    }
+    
+    const team1Score = match.scores_team1[setIndex];
+    const team2Score = match.scores_team2[setIndex];
+    
+    if (team1Score === 0 && team2Score === 0) {
+      return 'not_played';
+    }
+    
+    if (team1Score > 0 || team2Score > 0) {
+      return 'completed';
+    }
+    
+    return 'not_played';
   };
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        {error}
-      </Alert>
-    );
-  }
-
+  
+  const isMatchComplete = () => {
+    if (!match) return false;
+    return match.status === 'completed';
+  };
+  
   if (!match) {
     return (
-      <Alert severity="warning" sx={{ mt: 2 }}>
-        Match not found.
-      </Alert>
+      <Alert severity="info">No match data available</Alert>
     );
   }
-
+  
   return (
-    <Box sx={{ mb: 4 }}>
-      <Card variant="outlined" sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h5" gutterBottom>
-            Pool Match Scoring
+    <Card>
+      <CardHeader 
+        title={
+          <Typography variant="h5">
+            Match Scoring
+            <Chip 
+              label={match.status.toUpperCase()}
+              color={match.status === 'completed' ? 'success' : 'primary'}
+              size="small" 
+              sx={{ ml: 2 }}
+            />
           </Typography>
-          
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle1">
-              {formatTeamName(match.team1_name)} vs {formatTeamName(match.team2_name)}
+        }
+        subheader={
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="subtitle1" color="text.secondary">
+              <strong>Pool:</strong> {match.pool_name}
+            </Typography>
+            <Typography variant="subtitle2" color="text.secondary">
+              <TimerIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+              {formatDateTime(match.scheduled_time)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {match.pool_name || 'Pool Play'} • {formatDateTime(match.scheduled_time * 1000)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Status: {match.status.charAt(0).toUpperCase() + match.status.slice(1)}
+              <strong>Location:</strong> {match.location_name || 'Not specified'}, Court {match.court_number || 'N/A'}
             </Typography>
           </Box>
-        </CardContent>
-      </Card>
-
-      {/* Set-by-set scoring */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Set</TableCell>
-              <TableCell>{formatTeamName(match.team1_name)}</TableCell>
-              <TableCell>{formatTeamName(match.team2_name)}</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {scoreInputs.map((input, index) => (
-              <TableRow key={`set-${index + 1}`}>
-                <TableCell>Set {index + 1}</TableCell>
-                <TableCell>
-                  <TextField
-                    type="text"
-                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
-                    size="small"
-                    value={input.team1Score}
-                    onChange={(e) => handleScoreChange(index, 'team1', e.target.value)}
-                    disabled={input.complete || saving}
-                    sx={{ width: '5rem' }}
+        }
+      />
+      
+      <Divider />
+      
+      <CardContent>
+        <Grid container spacing={3}>
+          {/* Teams Header */}
+          <Grid item xs={12}>
+            <Paper elevation={0} sx={{ p: 2, backgroundColor: '#f5f5f5' }}>
+              <Grid container alignItems="center">
+                <Grid item xs={5}>
+                  <Typography variant="h6" align="center">
+                    {match.team1_name}
+                  </Typography>
+                </Grid>
+                <Grid item xs={2}>
+                  <Typography variant="h6" align="center">vs</Typography>
+                </Grid>
+                <Grid item xs={5}>
+                  <Typography variant="h6" align="center">
+                    {match.team2_name}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+          </Grid>
+          
+          {/* Match Sets */}
+          {Array.from({ length: match.num_sets }).map((_, index) => {
+            const setNumber = index + 1;
+            const setStatus = getSetStatus(index);
+            const isComplete = setStatus === 'completed';
+            
+            return (
+              <Grid item xs={12} key={`set-${setNumber}`}>
+                <Card variant="outlined">
+                  <CardHeader
+                    title={`Set ${setNumber}`}
+                    subheader={isComplete ? 'Completed' : 'Not Played'}
                   />
-                </TableCell>
-                <TableCell>
-                  <TextField
-                    type="text"
-                    inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
-                    size="small"
-                    value={input.team2Score}
-                    onChange={(e) => handleScoreChange(index, 'team2', e.target.value)}
-                    disabled={input.complete || saving}
-                    sx={{ width: '5rem' }}
-                  />
-                </TableCell>
-                <TableCell>
-                  {!input.complete ? (
-                    <Button
-                      variant="contained"
-                      size="small"
-                      onClick={() => saveSetScore(index)}
-                      disabled={
-                        saving || 
-                        input.team1Score === '' || 
-                        input.team2Score === '' ||
-                        (index > 0 && !scoreInputs[index - 1].complete)
-                      }
-                    >
-                      {saving ? 'Saving...' : 'Save'}
-                    </Button>
-                  ) : (
-                    <Typography variant="body2" color="success.main">
-                      Complete
-                    </Typography>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
-        <Button variant="outlined" onClick={() => navigate(-1)}>
-          Back
-        </Button>
-        
-        {match.status === 'completed' && (
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => {
-              if (onMatchComplete) onMatchComplete(match);
-              else navigate(-1);
-            }}
-          >
-            Match Complete
-          </Button>
-        )}
-      </Box>
-
+                  <CardContent>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs={5}>
+                        <TextField
+                          fullWidth
+                          label={`${match.team1_name} Score`}
+                          variant="outlined"
+                          value={scores.team1[index]}
+                          onChange={(e) => handleScoreChange('team1', index, e.target.value)}
+                          type="number"
+                          InputProps={{ inputProps: { min: 0 } }}
+                          disabled={isMatchComplete()}
+                        />
+                      </Grid>
+                      <Grid item xs={2}>
+                        <Typography variant="h4" align="center">-</Typography>
+                      </Grid>
+                      <Grid item xs={5}>
+                        <TextField
+                          fullWidth
+                          label={`${match.team2_name} Score`}
+                          variant="outlined"
+                          value={scores.team2[index]}
+                          onChange={(e) => handleScoreChange('team2', index, e.target.value)}
+                          type="number"
+                          InputProps={{ inputProps: { min: 0 } }}
+                          disabled={isMatchComplete()}
+                        />
+                      </Grid>
+                      
+                      <Grid item xs={12}>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            startIcon={<SaveIcon />}
+                            onClick={() => handleSubmitScore(setNumber)}
+                            disabled={loading || isMatchComplete()}
+                          >
+                            Save Set {setNumber} Score
+                          </Button>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                  </CardContent>
+                </Card>
+              </Grid>
+            );
+          })}
+          
+          {/* Match Summary */}
+          {match.scores_team1 && match.scores_team1.some(score => score > 0) && (
+            <Grid item xs={12}>
+              <TableContainer component={Paper} variant="outlined">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Team</TableCell>
+                      {Array.from({ length: match.num_sets }).map((_, index) => (
+                        <TableCell key={`set-header-${index + 1}`} align="center">
+                          Set {index + 1}
+                        </TableCell>
+                      ))}
+                      <TableCell align="center">Sets Won</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>{match.team1_name}</TableCell>
+                      {match.scores_team1.map((score, index) => (
+                        <TableCell key={`team1-set-${index + 1}`} align="center">
+                          {score || '-'}
+                        </TableCell>
+                      ))}
+                      <TableCell align="center">
+                        {match.sets_won_team1 || 0}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>{match.team2_name}</TableCell>
+                      {match.scores_team2.map((score, index) => (
+                        <TableCell key={`team2-set-${index + 1}`} align="center">
+                          {score || '-'}
+                        </TableCell>
+                      ))}
+                      <TableCell align="center">
+                        {match.sets_won_team2 || 0}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Grid>
+          )}
+        </Grid>
+      </CardContent>
+      
+      {/* Error and Success Messages */}
       <Snackbar
-        open={notification.open}
+        open={!!error}
         autoHideDuration={6000}
-        onClose={handleCloseNotification}
+        onClose={() => setError(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert 
-          onClose={handleCloseNotification} 
-          severity={notification.severity}
-          sx={{ width: '100%' }}
-        >
-          {notification.message}
+        <Alert onClose={() => setError(null)} severity="error">
+          {error}
         </Alert>
       </Snackbar>
-    </Box>
+      
+      <Snackbar
+        open={success}
+        autoHideDuration={3000}
+        onClose={() => setSuccess(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSuccess(false)} severity="success">
+          Score updated successfully
+        </Alert>
+      </Snackbar>
+    </Card>
   );
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link as RouterLink } from 'react-router-dom';
-import { tournamentAPI, teamAPI } from '../api/api';
+import { tournamentAPI, teamAPI } from '../api';
 import {
   Container, Typography, Box, Paper, CircularProgress,
   Tabs, Tab, Grid, List, ListItem, ListItemText, Button,
@@ -19,30 +19,41 @@ const TournamentStatus = {
   COMPLETED: 'completed'
 };
 
-const TournamentDetailPage = () => {
-  const { id } = useParams();
+const TournamentDetailPage = ({ initialTab }) => {
+  const { tournamentId } = useParams();
   const [tournament, setTournament] = useState(null);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tabValue, setTabValue] = useState(0);
+  const [tabValue, setTabValue] = useState(initialTab || 0);
   const [refreshCounter, setRefreshCounter] = useState(0);
 
   useEffect(() => {
     const fetchTournamentDetails = async () => {
       try {
         setLoading(true);
-        const tournamentResponse = await tournamentAPI.getById(id);
-        setTournament(tournamentResponse.data);
+        const tournamentData = await tournamentAPI.getTournament(tournamentId);
+        setTournament(tournamentData);
         
-        const teamsResponse = await teamAPI.getByTournament(id);
-        setTeams(teamsResponse.data);
+        // Try to get teams either from the tournament data or via the teams API
+        let teamsData = [];
+        if (tournamentData && Array.isArray(tournamentData.teams)) {
+          teamsData = tournamentData.teams;
+        } else {
+          try {
+            teamsData = await teamAPI.getTeamsByTournament(tournamentId);
+          } catch (teamErr) {
+            console.error('Error fetching teams:', teamErr);
+            // Continue with empty teams array if this fails
+          }
+        }
+        setTeams(teamsData);
         
         // Set active tab based on tournament status
-        if (tournamentResponse.data.status === TournamentStatus.POOL_PLAY && tournamentResponse.data.has_pool_play) {
+        if (tournamentData.status === TournamentStatus.POOL_PLAY && tournamentData.has_pool_play) {
           setTabValue(1); // Pool Play tab
-        } else if (tournamentResponse.data.status === TournamentStatus.BRACKET_PLAY || 
-                  tournamentResponse.data.status === TournamentStatus.COMPLETED) {
+        } else if (tournamentData.status === TournamentStatus.BRACKET_PLAY || 
+                  tournamentData.status === TournamentStatus.COMPLETED) {
           setTabValue(2); // Bracket tab
         }
         
@@ -56,7 +67,7 @@ const TournamentDetailPage = () => {
     };
     
     fetchTournamentDetails();
-  }, [id, refreshCounter]);
+  }, [tournamentId, refreshCounter]);
 
   const handleChangeTab = (event, newValue) => {
     setTabValue(newValue);

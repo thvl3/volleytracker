@@ -1,130 +1,160 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-
-// Import components
-import Header from './components/common/Header';
-import Footer from './components/common/Footer';
-
-// Import pages
 import HomePage from './pages/HomePage';
-import TournamentListPage from './pages/TournamentListPage';
-import TournamentDetailPage from './pages/TournamentDetailPage';
-import LiveBracketPage from './pages/LiveBracketPage';
 import AdminLoginPage from './pages/Admin/AdminLoginPage';
 import AdminDashboardPage from './pages/Admin/AdminDashboardPage';
 import AdminTournamentsPage from './pages/Admin/AdminTournamentsPage';
 import AdminTeamsPage from './pages/Admin/AdminTeamsPage';
+import AdminLocationsPage from './pages/Admin/AdminLocationsPage';
+import AdminPoolsPage from './pages/Admin/AdminPoolsPage';
+import AdminPoolScoringPage from './pages/Admin/AdminPoolScoringPage';
 import AdminMatchesPage from './pages/Admin/AdminMatchesPage';
 import AdminScoringPage from './pages/Admin/AdminScoringPage';
-import AdminPoolScoringPage from './pages/Admin/AdminPoolScoringPage';
-import AdminLocationsPage from './pages/Admin/AdminLocationsPage';
-import NotFoundPage from './pages/NotFoundPage';
+import TournamentListPage from './pages/TournamentListPage';
+import TournamentDetailPage from './pages/TournamentDetailPage';
+import { authAPI } from './api';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminLayout from './components/AdminLayout';
+import MainLayout from './components/MainLayout';
 
-// Auth context & utils
-import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/common/ProtectedRoute';
-
-// Create theme
 const theme = createTheme({
   palette: {
     primary: {
       main: '#1976d2',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#f50057',
     },
-    background: {
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    fontFamily: 'Roboto, Arial, sans-serif',
   },
 });
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setAuthenticated(false);
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        await authAPI.validateToken();
+        setAuthenticated(true);
+      } catch (err) {
+        console.error('Token validation failed:', err);
+        localStorage.removeItem('token');
+        setAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <Router>
-          <Header />
-          <main className="container">
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/tournaments" element={<TournamentListPage />} />
-              <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
-              <Route path="/tournaments/:tournamentId/bracket" element={<LiveBracketPage />} />
-              
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLoginPage />} />
-              <Route 
-                path="/admin" 
-                element={
-                  <ProtectedRoute>
-                    <AdminDashboardPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/tournaments" 
-                element={
-                  <ProtectedRoute>
-                    <AdminTournamentsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/locations" 
-                element={
-                  <ProtectedRoute>
-                    <AdminLocationsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/tournaments/:tournamentId/teams" 
-                element={
-                  <ProtectedRoute>
-                    <AdminTeamsPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/tournaments/:tournamentId/matches" 
-                element={
-                  <ProtectedRoute>
-                    <AdminMatchesPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/tournaments/:tournamentId/scoring" 
-                element={
-                  <ProtectedRoute>
-                    <AdminScoringPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/pool-matches/:matchId/scoring" 
-                element={
-                  <ProtectedRoute>
-                    <AdminPoolScoringPage />
-                  </ProtectedRoute>
-                } 
-              />
-
-              {/* 404 and fallback routes */}
-              <Route path="/404" element={<NotFoundPage />} />
-              <Route path="*" element={<Navigate to="/404" replace />} />
-            </Routes>
-          </main>
-          <Footer />
-        </Router>
-      </AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Routes */}
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<AdminLoginPage />} />
+            <Route path="/tournaments" element={<TournamentListPage />} />
+            <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
+            <Route path="/tournaments/:tournamentId/bracket" element={<TournamentDetailPage initialTab={2} />} />
+            <Route path="/tournaments/:tournamentId/live" element={<TournamentDetailPage initialTab={2} />} />
+          </Route>
+          
+          {/* Admin Routes - Wrapped in AdminLayout */}
+          <Route path="/admin" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminDashboardPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/tournaments" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminTournamentsPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/tournaments/:tournamentId" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminMatchesPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/tournaments/:tournamentId/matches" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminMatchesPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/tournaments/:tournamentId/teams" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminTeamsPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/tournaments/:tournamentId/pools" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminPoolsPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/locations" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminLocationsPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/pool-matches/:matchId/score" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminPoolScoringPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/matches/:matchId/score" element={
+            <ProtectedRoute authenticated={authenticated}>
+              <AdminLayout>
+                <AdminScoringPage />
+              </AdminLayout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Redirect unknown routes to home */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </ThemeProvider>
   );
 }

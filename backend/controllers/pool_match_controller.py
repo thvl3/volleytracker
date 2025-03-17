@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from models.pool_match import PoolMatch
 from models.pool_standing import PoolStanding
 from models.team import Team
+from models.pool import Pool
+from models.location import Location
 from middleware.auth_middleware import require_auth
 import logging
 
@@ -11,21 +13,36 @@ pool_match_controller = Blueprint('pool_match_controller', __name__)
 
 @pool_match_controller.route('/pool-matches/<match_id>', methods=['GET'])
 def get_pool_match(match_id):
-    """Get a pool match by ID"""
+    """Get details of a pool match"""
     try:
         match = PoolMatch.get(match_id)
         if not match:
             return jsonify({'error': 'Match not found'}), 404
-            
-        # Get team names for the response
-        team1 = Team.get(match.team1_id) if match.team1_id else None
-        team2 = Team.get(match.team2_id) if match.team2_id else None
         
-        response = match.to_dict()
-        response['team1_name'] = team1.team_name if team1 else None
-        response['team2_name'] = team2.team_name if team2 else None
+        result = match.to_dict()
         
-        return jsonify(response), 200
+        # Add team names
+        team1 = Team.get(match.team1_id)
+        team2 = Team.get(match.team2_id)
+        
+        if team1:
+            result['team1_name'] = team1.team_name
+        
+        if team2:
+            result['team2_name'] = team2.team_name
+        
+        # Add pool name
+        pool = Pool.get(match.pool_id)
+        if pool:
+            result['pool_name'] = pool.name
+        
+        # Add location name
+        if match.location_id:
+            location = Location.get(match.location_id)
+            if location:
+                result['location_name'] = location.name
+        
+        return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting pool match: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -55,126 +72,55 @@ def get_tournament_pool_matches(tournament_id):
         return jsonify({'error': str(e)}), 500
 
 @pool_match_controller.route('/pool-matches/<match_id>/score', methods=['PUT'])
-# Temporarily disable auth for testing
-# @require_auth
+@require_auth
 def update_pool_match_score(match_id):
-    """Update the score for a pool match"""
+    """Update the score for a specific set in a pool match"""
     try:
         data = request.get_json()
-        match = PoolMatch.get(match_id)
         
-        if not match:
-            return jsonify({'error': 'Match not found'}), 404
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
             
-        # Validate set number
         set_number = data.get('set_number')
-        if not set_number or not isinstance(set_number, int) or set_number < 1 or set_number > match.num_sets:
-            return jsonify({'error': f'Set number must be between 1 and {match.num_sets}'}), 400
-            
-        # Validate scores
         team1_score = data.get('team1_score')
         team2_score = data.get('team2_score')
         
-        if team1_score is None or not isinstance(team1_score, int) or team1_score < 0:
-            return jsonify({'error': 'Team 1 score must be a non-negative integer'}), 400
+        if set_number is None:
+            return jsonify({'error': 'Set number is required'}), 400
             
-        if team2_score is None or not isinstance(team2_score, int) or team2_score < 0:
-            return jsonify({'error': 'Team 2 score must be a non-negative integer'}), 400
+        if team1_score is None or team2_score is None:
+            return jsonify({'error': 'Scores for both teams are required'}), 400
+            
+        match = PoolMatch.get(match_id)
+        if not match:
+            return jsonify({'error': 'Match not found'}), 404
             
         # Update the score
-        try:
-            match.update_set_score(set_number, team1_score, team2_score)
-        except Exception as e:
-            logger.error(f"Error in update_set_score: {str(e)}")
-            return jsonify({'error': f'Error updating match score: {str(e)}'}), 500
+        match.update_set_score(set_number, team1_score, team2_score)
         
-        # If match is completed, update standings
-        if match.status == 'completed':
-            # Get and update team standings
-            try:
-                if match.team1_id and match.team2_id:
-                    # Team 1 standings
-                    standing1 = PoolStanding.get_by_team_and_pool(match.team1_id, match.pool_id)
-                    if standing1:
-                        try:
-                            # Update wins, losses, sets won/lost, points scored/allowed
-                            sets_won_team1 = sum(1 for s1, s2 in zip(match.scores_team1, match.scores_team2) if s1 > s2)
-                            sets_lost_team1 = sum(1 for s1, s2 in zip(match.scores_team1, match.scores_team2) if s1 < s2)
-                            points_scored_team1 = sum(int(s) if isinstance(s, str) else s for s in match.scores_team1)
-                            points_allowed_team1 = sum(int(s) if isinstance(s, str) else s for s in match.scores_team2)
-                            
-                            # Convert values to ensure they are integers
-                            standing1.update_stats(
-                                sets_won=int(sets_won_team1), 
-                                sets_lost=int(sets_lost_team1),
-                                points_scored=int(points_scored_team1),
-                                points_allowed=int(points_allowed_team1)
-                            )
-                            
-                            # Update wins/losses based on match result
-                            winner_id = match.get_winner_id()
-                            if winner_id == match.team1_id:
-                                standing1.update_stats(wins=1)
-                            elif winner_id == match.team2_id:
-                                standing1.update_stats(losses=1)
-                            else:
-                                standing1.update_stats(ties=1)
-                        except Exception as e:
-                            logger.error(f"Error updating standing for team1: {str(e)}")
-                            return jsonify({'error': f'Error updating standing for team1: {str(e)}'}), 500
-                    
-                    # Team 2 standings
-                    standing2 = PoolStanding.get_by_team_and_pool(match.team2_id, match.pool_id)
-                    if standing2:
-                        try:
-                            # Update wins, losses, sets won/lost, points scored/allowed
-                            sets_won_team2 = sum(1 for s1, s2 in zip(match.scores_team1, match.scores_team2) if s1 < s2)
-                            sets_lost_team2 = sum(1 for s1, s2 in zip(match.scores_team1, match.scores_team2) if s1 > s2)
-                            points_scored_team2 = sum(int(s) if isinstance(s, str) else s for s in match.scores_team2)
-                            points_allowed_team2 = sum(int(s) if isinstance(s, str) else s for s in match.scores_team1)
-                            
-                            # Convert values to ensure they are integers
-                            standing2.update_stats(
-                                sets_won=int(sets_won_team2), 
-                                sets_lost=int(sets_lost_team2),
-                                points_scored=int(points_scored_team2),
-                                points_allowed=int(points_allowed_team2)
-                            )
-                            
-                            # Update wins/losses based on match result
-                            winner_id = match.get_winner_id()
-                            if winner_id == match.team2_id:
-                                standing2.update_stats(wins=1)
-                            elif winner_id == match.team1_id:
-                                standing2.update_stats(losses=1)
-                            else:
-                                standing2.update_stats(ties=1)
-                        except Exception as e:
-                            logger.error(f"Error updating standing for team2: {str(e)}")
-                            return jsonify({'error': f'Error updating standing for team2: {str(e)}'}), 500
-                    
-                    # Recalculate all rankings in the pool
-                    try:
-                        standings = PoolStanding.get_by_pool(match.pool_id)
-                        sorted_standings = sorted(
-                            standings,
-                            key=lambda s: (
-                                -s.get_win_percentage(),
-                                -s.get_points_differential()
-                            )
-                        )
-                        
-                        # Update the rank for each team
-                        for i, standing in enumerate(sorted_standings):
-                            standing.assign_rank(i + 1)
-                    except Exception as e:
-                        logger.error(f"Error recalculating rankings: {str(e)}")
-                        return jsonify({'error': f'Error recalculating rankings: {str(e)}'}), 500
-            except Exception as e:
-                logger.error(f"Error updating standings: {str(e)}")
-                return jsonify({'error': f'Error updating standings: {str(e)}'}), 500
+        # Get updated match data
+        updated_match = PoolMatch.get(match_id)
+        result = updated_match.to_dict()
         
-        return jsonify(match.to_dict()), 200
+        # Add team names
+        team1 = Team.get(match.team1_id)
+        team2 = Team.get(match.team2_id)
+        
+        if team1:
+            result['team1_name'] = team1.team_name
+        
+        if team2:
+            result['team2_name'] = team2.team_name
+        
+        # Add pool name
+        pool = Pool.get(match.pool_id)
+        if pool:
+            result['pool_name'] = pool.name
+        
+        return jsonify(result), 200
+    except ValueError as e:
+        logger.error(f"Validation error updating pool match score: {str(e)}")
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error updating pool match score: {str(e)}")
         return jsonify({'error': str(e)}), 500

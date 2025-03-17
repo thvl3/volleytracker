@@ -1,87 +1,108 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Box, Typography, Paper, Container, Breadcrumbs, Link } from '@mui/material';
+import {
+  Box,
+  Container,
+  Typography,
+  Button,
+  Paper,
+  CircularProgress,
+  Alert,
+  Breadcrumbs,
+  Link
+} from '@mui/material';
+import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import AdminLayout from '../../components/AdminLayout';
 import PoolMatchScoring from '../../components/PoolMatchScoring';
-import { poolMatchAPI, tournamentAPI } from '../../api/api';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import { poolMatchAPI, poolAPI } from '../../api';
 
 const AdminPoolScoringPage = () => {
   const { matchId } = useParams();
   const navigate = useNavigate();
+  
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [tournamentName, setTournamentName] = useState('');
-
+  
   useEffect(() => {
-    const fetchMatchDetails = async () => {
+    const fetchMatch = async () => {
       try {
         setLoading(true);
-        const response = await poolMatchAPI.getById(matchId);
-        const matchData = response.data;
+        const matchData = await poolMatchAPI.getPoolMatch(matchId);
         setMatch(matchData);
-        
-        // Fetch tournament name
-        if (matchData.tournament_id) {
-          const tournamentResponse = await tournamentAPI.getById(matchData.tournament_id);
-          setTournamentName(tournamentResponse.data.name);
-        }
-        
         setError(null);
       } catch (err) {
-        console.error('Error fetching match details:', err);
-        setError('Failed to load match details.');
+        console.error('Error fetching match:', err);
+        setError(err.message || 'Failed to load match');
       } finally {
         setLoading(false);
       }
     };
     
-    if (matchId) {
-      fetchMatchDetails();
-    }
+    fetchMatch();
   }, [matchId]);
-
-  const handleMatchComplete = () => {
-    // Navigate back to the matches page
-    navigate(`/admin/tournaments/${match.tournament_id}/matches`);
+  
+  const handleScoreUpdate = (updatedMatch) => {
+    setMatch(updatedMatch);
   };
-
+  
+  const handleBack = () => {
+    if (match && match.pool_id) {
+      navigate(`/admin/pools/${match.pool_id}`);
+    } else {
+      navigate(-1);
+    }
+  };
+  
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 3, mb: 4 }}>
-        <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />}>
-          <Link underline="hover" color="inherit" href="/admin">
-            Dashboard
-          </Link>
-          <Link underline="hover" color="inherit" href="/admin/tournaments">
-            Tournaments
-          </Link>
-          {match && match.tournament_id && (
-            <Link 
-              underline="hover" 
-              color="inherit" 
-              href={`/admin/tournaments/${match.tournament_id}`}
-            >
-              {tournamentName || 'Tournament Details'}
+    <AdminLayout>
+      <Container maxWidth="lg">
+        <Box sx={{ mb: 4 }}>
+          <Breadcrumbs sx={{ mb: 2 }}>
+            <Link color="inherit" href="/admin/tournaments">
+              Tournaments
             </Link>
+            {match && (
+              <>
+                <Link color="inherit" href={`/admin/tournaments/${match.tournament_id}`}>
+                  Tournament
+                </Link>
+                <Link color="inherit" href={`/admin/pools/${match.pool_id}`}>
+                  {match.pool_name || 'Pool'}
+                </Link>
+              </>
+            )}
+            <Typography color="textPrimary">Match Scoring</Typography>
+          </Breadcrumbs>
+          
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h4">Pool Match Scoring</Typography>
+            <Button
+              variant="outlined"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleBack}
+            >
+              Back to Pool
+            </Button>
+          </Box>
+          
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : error ? (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          ) : (
+            <PoolMatchScoring 
+              match={match} 
+              onScoreUpdate={handleScoreUpdate} 
+            />
           )}
-          <Typography color="text.primary">Pool Match Scoring</Typography>
-        </Breadcrumbs>
-      </Box>
-
-      <Paper sx={{ p: 3 }}>
-        {loading ? (
-          <Typography>Loading match details...</Typography>
-        ) : error ? (
-          <Typography color="error">{error}</Typography>
-        ) : (
-          <PoolMatchScoring 
-            matchId={matchId}
-            onMatchComplete={handleMatchComplete}
-          />
-        )}
-      </Paper>
-    </Container>
+        </Box>
+      </Container>
+    </AdminLayout>
   );
 };
 

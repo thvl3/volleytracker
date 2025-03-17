@@ -22,7 +22,7 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@team_bp.route('/', methods=['GET'])
+@team_bp.route('', methods=['GET'])
 def get_teams():
     """Get all teams for a tournament"""
     tournament_id = request.args.get('tournament_id')
@@ -44,7 +44,7 @@ def get_team(team_id):
     
     return jsonify(team.to_dict()), 200
 
-@team_bp.route('/', methods=['POST'])
+@team_bp.route('', methods=['POST'])
 @require_auth
 def create_team():
     """Create a new team (admin only)"""

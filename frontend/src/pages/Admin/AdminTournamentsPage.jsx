@@ -29,7 +29,7 @@ import {
   Stack
 } from '@mui/material';
 import moment from 'moment';
-import { tournamentAPI, locationAPI } from '../../api/api';
+import { tournamentAPI, locationAPI } from '../../api';
 import Loading from '../../components/common/Loading';
 
 const AdminTournamentsPage = () => {
@@ -62,12 +62,12 @@ const AdminTournamentsPage = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const tournamentsResponse = await tournamentAPI.getAll();
-      setTournaments(tournamentsResponse.data);
+      const tournaments = await tournamentAPI.getAllTournaments();
+      setTournaments(tournaments);
 
       // Fetch locations
-      const locationsResponse = await locationAPI.getAll();
-      setLocations(locationsResponse.data);
+      const locations = await locationAPI.getAllLocations();
+      setLocations(locations);
       
       setLoading(false);
     } catch (err) {
@@ -100,7 +100,7 @@ const AdminTournamentsPage = () => {
         type: formData.type
       };
       
-      await tournamentAPI.create(data);
+      await tournamentAPI.createTournament(data);
       fetchData();
       
       // Reset form and close dialog
@@ -130,7 +130,7 @@ const AdminTournamentsPage = () => {
     
     try {
       setLoading(true);
-      await tournamentAPI.delete(tournamentToDelete.tournament_id);
+      await tournamentAPI.deleteTournament(tournamentToDelete.tournament_id);
       
       // Refresh tournaments list
       await fetchData();
@@ -149,7 +149,7 @@ const AdminTournamentsPage = () => {
   const handleUpdateStatus = async (tournamentId, newStatus) => {
     try {
       setLoading(true);
-      await tournamentAPI.update(tournamentId, { status: newStatus });
+      await tournamentAPI.updateTournament(tournamentId, { status: newStatus });
       
       // Refresh tournaments list
       await fetchData();
@@ -229,6 +229,13 @@ const AdminTournamentsPage = () => {
                             to={`/admin/tournaments/${tournament.tournament_id}/teams`}
                           >
                             Teams
+                          </Button>
+                          <Button 
+                            size="small" 
+                            component={Link} 
+                            to={`/admin/tournaments/${tournament.tournament_id}/pools`}
+                          >
+                            Pools
                           </Button>
                           <Button 
                             size="small" 

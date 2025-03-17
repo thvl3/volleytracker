@@ -1,46 +1,47 @@
 import uuid
 import time
-from services.db_service import db_service
+import logging
+from services.db_service import DynamoDBService
 from boto3.dynamodb.conditions import Key
 
+logger = logging.getLogger(__name__)
+db_service = DynamoDBService()
+
 class PoolMatch:
-    def __init__(self, match_id=None, pool_id=None, tournament_id=None, 
-                 team1_id=None, team2_id=None, scores_team1=None, scores_team2=None,
-                 status='scheduled', location_id=None, court_number=None, 
-                 scheduled_time=None, num_sets=2, created_at=None, is_pool_match=True):
-        self.match_id = match_id or str(uuid.uuid4())
+    def __init__(self, match_id, pool_id, tournament_id, team1_id, team2_id, scores_team1=None, scores_team2=None,
+                 status='scheduled', location_id=None, court_number=None, scheduled_time=None, num_sets=2, created_at=None):
+        self.match_id = match_id
         self.pool_id = pool_id
         self.tournament_id = tournament_id
         self.team1_id = team1_id
         self.team2_id = team2_id
-        self.scores_team1 = scores_team1 or []  # List of set scores, e.g. [21, 19]
-        self.scores_team2 = scores_team2 or []  # List of set scores, e.g. [19, 21]
-        self.status = status  # 'scheduled', 'in_progress', 'completed'
+        self.scores_team1 = scores_team1 or []
+        self.scores_team2 = scores_team2 or []
+        self.status = status
         self.location_id = location_id
         self.court_number = court_number
         self.scheduled_time = scheduled_time or int(time.time())
-        self.num_sets = num_sets  # Default 2 sets for pool play
+        self.num_sets = num_sets
         self.created_at = created_at or int(time.time())
-        self.is_pool_match = is_pool_match
-    
+
     @classmethod
-    def create(cls, pool_id, tournament_id, team1_id, team2_id, 
-               location_id=None, court_number=None, scheduled_time=None, num_sets=2, is_pool_match=True):
-        """Create a new pool match"""
+    def create(cls, pool_id, tournament_id, team1_id, team2_id, num_sets=2, location_id=None, court_number=None, scheduled_time=None):
+        match_id = str(uuid.uuid4())
         match = cls(
+            match_id=match_id,
             pool_id=pool_id,
             tournament_id=tournament_id,
             team1_id=team1_id,
             team2_id=team2_id,
+            scores_team1=[0] * num_sets,
+            scores_team2=[0] * num_sets,
+            status='scheduled',
             location_id=location_id,
             court_number=court_number,
             scheduled_time=scheduled_time,
-            num_sets=num_sets,
-            is_pool_match=is_pool_match
+            num_sets=num_sets
         )
-        
-        # Save to DynamoDB
-        db_service.pool_matches_table.put_item(Item=match.to_dict())
+        match.save()
         return match
     
     @classmethod
@@ -155,36 +156,69 @@ class PoolMatch:
             return 0  # Team not in this match
     
     def update_set_score(self, set_number, team1_score, team2_score):
-        """Update the score for a specific set"""
+        """
+        Update the score for a specific set in the match
+        
+        Args:
+            set_number (int): The set number to update (1-based index)
+            team1_score (int): Score for team 1
+            team2_score (int): Score for team 2
+        
+        Returns:
+            PoolMatch: The updated match
+        """
+        # Validate set number is within range
         if set_number < 1 or set_number > self.num_sets:
-            raise ValueError(f"Set number must be between 1 and {self.num_sets}")
+            raise ValueError(f"Set number {set_number} is invalid. Must be between 1 and {self.num_sets}")
             
-        # Ensure scores lists are initialized with enough elements
-        while len(self.scores_team1) < self.num_sets:
-            self.scores_team1.append(0)
-        while len(self.scores_team2) < self.num_sets:
-            self.scores_team2.append(0)
+        # Initialize score arrays if they don't exist yet
+        if not self.scores_team1 or len(self.scores_team1) < self.num_sets:
+            self.scores_team1 = [0] * self.num_sets
             
-        # Update scores for the specific set
+        if not self.scores_team2 or len(self.scores_team2) < self.num_sets:
+            self.scores_team2 = [0] * self.num_sets
+            
+        # Update scores for the specified set
         self.scores_team1[set_number - 1] = team1_score
         self.scores_team2[set_number - 1] = team2_score
         
-        # Update match status based on scores
+        # Check if match is complete and update status
         if self._is_match_complete():
             self.status = 'completed'
-        elif any(s1 > 0 or s2 > 0 for s1, s2 in zip(self.scores_team1, self.scores_team2)):
+        else:
             self.status = 'in_progress'
             
-        # Save changes
+        # Save changes to the database
         self.update()
+        
+        # Update pool standings
+        from models.pool_standing import PoolStanding
+        
+        # Update team 1 standings
+        standing1 = PoolStanding.get_by_team_and_pool(self.team1_id, self.pool_id)
+        if standing1:
+            standing1.update_stats()
+            
+        # Update team 2 standings
+        standing2 = PoolStanding.get_by_team_and_pool(self.team2_id, self.pool_id)
+        if standing2:
+            standing2.update_stats()
+            
         return self
         
     def _is_match_complete(self):
-        """Check if the match is complete"""
-        # For pool play, all sets must be played
-        return len([s for s in self.scores_team1 if s > 0]) == self.num_sets and \
-               len([s for s in self.scores_team2 if s > 0]) == self.num_sets
-               
+        """Check if all sets have been played"""
+        if not self.scores_team1 or not self.scores_team2:
+            return False
+            
+        # Check if all sets have a score
+        for i in range(self.num_sets):
+            if self.scores_team1[i] == 0 and self.scores_team2[i] == 0:
+                # This set hasn't been played yet
+                return False
+                
+        return True
+        
     def update(self):
         """Update an existing pool match"""
         db_service.pool_matches_table.put_item(Item=self.to_dict())
@@ -211,6 +245,5 @@ class PoolMatch:
             'court_number': self.court_number,
             'scheduled_time': self.scheduled_time,
             'num_sets': self.num_sets,
-            'created_at': self.created_at,
-            'is_pool_match': self.is_pool_match
+            'created_at': self.created_at
         } 

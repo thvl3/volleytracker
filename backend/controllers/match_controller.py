@@ -24,7 +24,7 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@match_bp.route('/', methods=['GET'])
+@match_bp.route('', methods=['GET'])
 def get_matches():
     """Get all matches for a tournament"""
     tournament_id = request.args.get('tournament_id')

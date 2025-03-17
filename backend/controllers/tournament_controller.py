@@ -26,7 +26,7 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
-@tournament_bp.route('/', methods=['GET'])
+@tournament_bp.route('', methods=['GET'])
 def get_tournaments():
     """Get all tournaments"""
     tournaments = Tournament.get_all()
@@ -102,7 +102,7 @@ def get_tournament_bracket(tournament_id):
     bracket = tournament.get_bracket()
     return jsonify(bracket), 200
 
-@tournament_bp.route('/', methods=['POST'])
+@tournament_bp.route('', methods=['POST'])
 @require_auth
 def create_tournament():
     """Create a new tournament (admin only)"""
@@ -330,5 +330,23 @@ def create_bracket_from_pools(tournament_id):
             'bracket': tournament.get_bracket(),
             'qualified_teams': qualified_teams
         }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@tournament_bp.route('/<tournament_id>/teams', methods=['GET'])
+def get_tournament_teams(tournament_id):
+    """Get all teams for a specific tournament"""
+    try:
+        # Check if tournament exists
+        tournament = Tournament.get(tournament_id)
+        if not tournament:
+            return jsonify({'error': 'Tournament not found'}), 404
+            
+        # Get teams for this tournament
+        from models.team import Team
+        teams = Team.get_by_tournament(tournament_id)
+        
+        # Return team data
+        return jsonify([team.to_dict() for team in teams]), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500

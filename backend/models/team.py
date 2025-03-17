@@ -71,6 +71,11 @@ class Team:
         return teams
     
     @classmethod
+    def get_by_tournament(cls, tournament_id):
+        """Get all teams for a specific tournament"""
+        return cls.get_all(tournament_id)
+    
+    @classmethod
     def update(cls, team):
         """Update a team"""
         item = {

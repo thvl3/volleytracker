@@ -1,343 +1,245 @@
 import React, { useState, useEffect } from 'react';
-import { tournamentAPI, poolAPI } from '../api/api';
-import { 
-  Accordion, AccordionSummary, AccordionDetails, 
-  Typography, Box, Button, Table, 
-  TableBody, TableCell, TableContainer, 
-  TableHead, TableRow, Paper, Chip
+import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardActions,
+  Typography,
+  Grid,
+  Tabs,
+  Tab,
+  Divider,
+  CircularProgress,
+  Alert,
+  Paper,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Chip
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { formatDateTime } from '../utils/format';
+import {
+  People as PeopleIcon,
+  LocationOn as LocationIcon,
+  EmojiEvents as TrophyIcon
+} from '@mui/icons-material';
+import { poolAPI } from '../api';
+import PoolStandings from './PoolStandings';
+import PoolMatchList from './PoolMatchList';
 
-const PoolList = ({ tournamentId, isAdmin, onRefresh }) => {
+const PoolList = ({ tournamentId, isAdmin }) => {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedPool, setExpandedPool] = useState(null);
-
+  const [selectedPool, setSelectedPool] = useState(null);
+  const [tabValue, setTabValue] = useState(0);
+  const navigate = useNavigate();
+  
   useEffect(() => {
-    fetchPools();
-  }, [tournamentId, onRefresh]);
-
-  const fetchPools = async () => {
-    try {
-      setLoading(true);
-      const response = await tournamentAPI.getPools(tournamentId);
-      setPools(response.data);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching pools:', err);
-      setError('Failed to load pools. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePoolClick = async (poolId) => {
-    if (expandedPool === poolId) {
-      setExpandedPool(null);
-      return;
-    }
-
-    setExpandedPool(poolId);
-    
-    // Get detailed pool info if not already loaded
-    const pool = pools.find(p => p.pool_id === poolId);
-    if (!pool.teams || !pool.standings) {
-      try {
-        const response = await poolAPI.getById(poolId);
-        // Update the pool with detailed info
-        setPools(prevPools => prevPools.map(p => 
-          p.pool_id === poolId ? { ...p, ...response.data } : p
-        ));
-      } catch (err) {
-        console.error('Error fetching pool details:', err);
-      }
-    }
-  };
-
-  const generateSchedule = async (poolId) => {
-    try {
-      await poolAPI.generateSchedule(poolId);
-      // Refresh the pool data
-      const response = await poolAPI.getById(poolId);
-      setPools(prevPools => prevPools.map(p => 
-        p.pool_id === poolId ? { ...p, ...response.data } : p
-      ));
-    } catch (err) {
-      console.error('Error generating schedule:', err);
-    }
-  };
-
-  const initializeStandings = async (poolId) => {
-    try {
-      await poolAPI.initializeStandings(poolId);
-      // Refresh the pool data
-      const response = await poolAPI.getById(poolId);
-      setPools(prevPools => prevPools.map(p => 
-        p.pool_id === poolId ? { ...p, ...response.data } : p
-      ));
-    } catch (err) {
-      console.error('Error initializing standings:', err);
-    }
-  };
-
-  if (loading) return <Typography>Loading pools...</Typography>;
-  if (error) return <Typography color="error">{error}</Typography>;
-  if (pools.length === 0) return <Typography>No pools found for this tournament.</Typography>;
-
-  return (
-    <Box sx={{ mt: 3 }}>
-      <Typography variant="h5" gutterBottom>
-        Pool Play
-      </Typography>
+    const fetchPools = async () => {
+      if (!tournamentId) return;
       
-      {pools.map(pool => (
-        <Accordion 
-          key={pool.pool_id} 
-          expanded={expandedPool === pool.pool_id}
-          onChange={() => handlePoolClick(pool.pool_id)}
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="h6">{pool.name}</Typography>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box>
-              {isAdmin && (
-                <Box sx={{ mb: 2, display: 'flex', gap: 1 }}>
-                  <Button 
-                    variant="outlined" 
-                    size="small" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      generateSchedule(pool.pool_id);
-                    }}
-                  >
-                    Generate Schedule
-                  </Button>
-                  <Button 
-                    variant="outlined" 
-                    size="small" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      initializeStandings(pool.pool_id);
-                    }}
-                  >
-                    Initialize Standings
-                  </Button>
-                </Box>
-              )}
-              
-              {/* Teams section */}
-              <Typography variant="subtitle1" gutterBottom>Teams</Typography>
-              {pool.teams ? (
-                <Box sx={{ mb: 3 }}>
-                  {pool.teams.map(team => (
-                    <Chip 
-                      key={team.team_id} 
-                      label={team.team_name} 
-                      sx={{ m: 0.5 }} 
-                    />
-                  ))}
-                </Box>
-              ) : (
-                <Typography variant="body2">No teams assigned yet.</Typography>
-              )}
-              
-              {/* Standings section */}
-              <Typography variant="subtitle1" gutterBottom>Standings</Typography>
-              {pool.standings && pool.standings.length > 0 ? (
-                <TableContainer component={Paper} sx={{ mb: 3 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Rank</TableCell>
-                        <TableCell>Team</TableCell>
-                        <TableCell align="center">W</TableCell>
-                        <TableCell align="center">L</TableCell>
-                        <TableCell align="center">T</TableCell>
-                        <TableCell align="center">Sets Won</TableCell>
-                        <TableCell align="center">Sets Lost</TableCell>
-                        <TableCell align="center">Points +/-</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {pool.standings.sort((a, b) => (a.rank || 999) - (b.rank || 999)).map(standing => {
-                        const team = pool.teams?.find(t => t.team_id === standing.team_id);
-                        return (
-                          <TableRow key={standing.standing_id}>
-                            <TableCell>{standing.rank || '-'}</TableCell>
-                            <TableCell>{team?.team_name || 'Unknown Team'}</TableCell>
-                            <TableCell align="center">{standing.wins}</TableCell>
-                            <TableCell align="center">{standing.losses}</TableCell>
-                            <TableCell align="center">{standing.ties}</TableCell>
-                            <TableCell align="center">{standing.sets_won}</TableCell>
-                            <TableCell align="center">{standing.sets_lost}</TableCell>
-                            <TableCell align="center">
-                              {standing.points_scored - standing.points_allowed}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Typography variant="body2" sx={{ mb: 3 }}>No standings available.</Typography>
-              )}
-              
-              {/* Matches section - lazy load when expanded */}
-              <PoolMatchList poolId={pool.pool_id} isAdmin={isAdmin} />
-            </Box>
-          </AccordionDetails>
-        </Accordion>
-      ))}
-    </Box>
-  );
-};
-
-// Sub-component for pool matches
-const PoolMatchList = ({ poolId, isAdmin }) => {
-  const [matches, setMatches] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchMatches();
-  }, [poolId]);
-
-  const fetchMatches = async () => {
-    try {
-      setLoading(true);
-      const response = await poolAPI.getMatches(poolId);
-      setMatches(response.data);
-    } catch (err) {
-      console.error('Error fetching pool matches:', err);
-    } finally {
-      setLoading(false);
-    }
+      try {
+        setLoading(true);
+        const poolsData = await poolAPI.getPoolsByTournament(tournamentId);
+        setPools(poolsData);
+        
+        if (poolsData.length > 0) {
+          setSelectedPool(poolsData[0]);
+        }
+        
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching pools:', err);
+        setError(err.message || 'Failed to load pools');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchPools();
+  }, [tournamentId]);
+  
+  const handlePoolSelect = (pool) => {
+    setSelectedPool(pool);
+    setTabValue(0); // Reset to standings tab
   };
-
-  if (loading) return <Typography>Loading matches...</Typography>;
-  if (matches.length === 0) return <Typography>No matches scheduled for this pool.</Typography>;
-
-  // Group matches by status
-  const scheduledMatches = matches.filter(m => m.status === 'scheduled');
-  const inProgressMatches = matches.filter(m => m.status === 'in_progress');
-  const completedMatches = matches.filter(m => m.status === 'completed');
-
+  
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+  
+  const handleGoToAdmin = () => {
+    navigate(`/admin/tournaments/${tournamentId}/pools`);
+  };
+  
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+  
+  if (error) {
+    return (
+      <Alert severity="error">{error}</Alert>
+    );
+  }
+  
+  if (pools.length === 0) {
+    return (
+      <Paper sx={{ p: 3 }}>
+        <Typography align="center" color="textSecondary" sx={{ mb: 2 }}>
+          No pools have been created for this tournament yet.
+        </Typography>
+        
+        {isAdmin && (
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Button 
+              variant="contained"
+              color="primary"
+              onClick={handleGoToAdmin}
+            >
+              Manage Pools
+            </Button>
+          </Box>
+        )}
+      </Paper>
+    );
+  }
+  
   return (
     <Box>
-      <Typography variant="subtitle1" gutterBottom>Matches</Typography>
-      
-      {inProgressMatches.length > 0 && (
-        <>
-          <Typography variant="subtitle2" gutterBottom>In Progress</Typography>
-          <TableContainer component={Paper} sx={{ mb: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Teams</TableCell>
-                  <TableCell align="center">Score</TableCell>
-                  <TableCell>Time</TableCell>
-                  {isAdmin && <TableCell>Actions</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {inProgressMatches.map(match => (
-                  <TableRow key={match.match_id}>
-                    <TableCell>
-                      {match.team1_name || 'Team 1'} vs {match.team2_name || 'Team 2'}
-                    </TableCell>
-                    <TableCell align="center">
-                      {match.scores_team1?.join(' - ') || '0'} : {match.scores_team2?.join(' - ') || '0'}
-                    </TableCell>
-                    <TableCell>{formatDateTime(match.scheduled_time * 1000)}</TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <Button 
-                          size="small" 
-                          variant="outlined"
-                          onClick={() => {/* Add navigation to scoring page */}}
-                        >
-                          Update
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={3}>
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Pools
+              </Typography>
+              
+              <List>
+                {pools.map((pool) => (
+                  <ListItem 
+                    key={pool.pool_id}
+                    button
+                    selected={selectedPool && pool.pool_id === selectedPool.pool_id}
+                    onClick={() => handlePoolSelect(pool)}
+                    sx={{ 
+                      borderRadius: 1,
+                      mb: 0.5,
+                      bgcolor: selectedPool && pool.pool_id === selectedPool.pool_id ? 'action.selected' : 'transparent'
+                    }}
+                  >
+                    <ListItemIcon>
+                      <PeopleIcon />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={pool.name} 
+                      secondary={`${pool.teams?.length || 0} Teams`}
+                    />
+                  </ListItem>
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
-      
-      {scheduledMatches.length > 0 && (
-        <>
-          <Typography variant="subtitle2" gutterBottom>Scheduled</Typography>
-          <TableContainer component={Paper} sx={{ mb: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Teams</TableCell>
-                  <TableCell>Time</TableCell>
-                  {isAdmin && <TableCell>Actions</TableCell>}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {scheduledMatches.map(match => (
-                  <TableRow key={match.match_id}>
-                    <TableCell>
-                      {match.team1_name || 'Team 1'} vs {match.team2_name || 'Team 2'}
-                    </TableCell>
-                    <TableCell>{formatDateTime(match.scheduled_time * 1000)}</TableCell>
-                    {isAdmin && (
-                      <TableCell>
-                        <Button 
-                          size="small" 
-                          variant="outlined"
-                          onClick={() => {/* Add navigation to scoring page */}}
-                        >
-                          Start
-                        </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
-      
-      {completedMatches.length > 0 && (
-        <>
-          <Typography variant="subtitle2" gutterBottom>Completed</Typography>
-          <TableContainer component={Paper}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Teams</TableCell>
-                  <TableCell align="center">Score</TableCell>
-                  <TableCell>Time</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {completedMatches.map(match => (
-                  <TableRow key={match.match_id}>
-                    <TableCell>
-                      {match.team1_name || 'Team 1'} vs {match.team2_name || 'Team 2'}
-                    </TableCell>
-                    <TableCell align="center">
-                      {match.scores_team1?.join(' - ') || '0'} : {match.scores_team2?.join(' - ') || '0'}
-                    </TableCell>
-                    <TableCell>{formatDateTime(match.scheduled_time * 1000)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
-      )}
+              </List>
+              
+              {isAdmin && (
+                <Box sx={{ mt: 2 }}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={handleGoToAdmin}
+                  >
+                    Manage Pools
+                  </Button>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} md={9}>
+          {selectedPool ? (
+            <Card>
+              <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tabs value={tabValue} onChange={handleTabChange} aria-label="pool tabs">
+                  <Tab label="Standings" />
+                  <Tab label="Schedule" />
+                  <Tab label="Details" />
+                </Tabs>
+              </Box>
+              
+              <CardContent>
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="h5">{selectedPool.name}</Typography>
+                </Box>
+                
+                {/* Tab Panels */}
+                {tabValue === 0 && (
+                  <PoolStandings poolId={selectedPool.pool_id} />
+                )}
+                
+                {tabValue === 1 && (
+                  <PoolMatchList poolId={selectedPool.pool_id} isAdmin={isAdmin} />
+                )}
+                
+                {tabValue === 2 && (
+                  <Box>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 2 }}>
+                          <Typography variant="subtitle1" gutterBottom>
+                            <LocationIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 1 }} />
+                            Location
+                          </Typography>
+                          
+                          <Typography variant="body1">
+                            {selectedPool.location_name || 'Not assigned'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Court {selectedPool.court_number || '1'}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={6}>
+                        <Paper sx={{ p: 2 }}>
+                          <Typography variant="subtitle1" gutterBottom>
+                            <PeopleIcon fontSize="small" sx={{ verticalAlign: 'middle', mr: 1 }} />
+                            Teams
+                          </Typography>
+                          
+                          {selectedPool.teams && selectedPool.teams.length > 0 ? (
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {selectedPool.teams.map((team, index) => (
+                                <Chip 
+                                  key={team.team_id || index}
+                                  label={team.team_name || `Team ${index + 1}`}
+                                  size="small"
+                                />
+                              ))}
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              No teams assigned
+                            </Typography>
+                          )}
+                        </Paper>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Alert severity="info">
+              Select a pool to view details
+            </Alert>
+          )}
+        </Grid>
+      </Grid>
     </Box>
   );
 };

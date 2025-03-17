@@ -1,6 +1,10 @@
 from flask import Blueprint, request, jsonify
 from models.tournament import Tournament
+from models.match import Match
+from models.team import Team
+from models.match_update import MatchUpdate
 from services.auth_service import AuthService
+from services.bracket_service import BracketService
 from functools import wraps
 
 tournament_bp = Blueprint('tournament', __name__)
@@ -146,3 +150,36 @@ def create_tournament_bracket(tournament_id):
         return jsonify({'message': str(e)}), 400
     except Exception as e:
         return jsonify({'message': f'Error creating bracket: {str(e)}'}), 500
+
+@tournament_bp.route('/<tournament_id>/updates', methods=['GET'])
+def get_tournament_updates(tournament_id):
+    """Get recent updates for a tournament"""
+    # Validate tournament
+    tournament = Tournament.get(tournament_id)
+    if not tournament:
+        return jsonify({'message': 'Tournament not found'}), 404
+    
+    # Get since timestamp if provided
+    since_timestamp = request.args.get('since')
+    if since_timestamp:
+        try:
+            since_timestamp = int(since_timestamp)
+        except ValueError:
+            return jsonify({'message': 'Invalid timestamp format'}), 400
+    
+    # Get limit if provided
+    limit = request.args.get('limit', 20)
+    try:
+        limit = int(limit)
+        if limit < 1 or limit > 50:
+            limit = 20  # Default if out of range
+    except ValueError:
+        limit = 20  # Default if not a valid integer
+    
+    # Get updates
+    updates = MatchUpdate.get_by_tournament(tournament_id, since_timestamp, limit)
+    
+    # Convert to dict for JSON response
+    result = [update.to_dict() for update in updates]
+    
+    return jsonify(result), 200

@@ -11,10 +11,13 @@ import {
   Grid,
   Divider,
   Chip,
-  Alert
+  Alert,
+  useMediaQuery,
+  useTheme
 } from '@mui/material';
 import { tournamentAPI, teamAPI } from '../api/api';
 import Loading from '../components/common/Loading';
+import TournamentUpdatesFeed from '../components/TournamentUpdatesFeed';
 import moment from 'moment';
 
 const LiveBracketPage = () => {
@@ -24,6 +27,8 @@ const LiveBracketPage = () => {
   const [teams, setTeams] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   useEffect(() => {
     const fetchData = async () => {
@@ -156,144 +161,154 @@ const LiveBracketPage = () => {
           </Box>
         </Box>
 
-        <Paper sx={{ p: 2, overflowX: 'auto' }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'flex-start', 
-            minWidth: bracket.length * 220 + 'px',
-            pb: 2 
-          }}>
-            {bracket.map((round, roundIndex) => (
-              <Box 
-                key={round.round} 
-                sx={{ 
-                  flex: 1,
-                  minWidth: '220px',
-                  maxWidth: '280px',
-                  mx: 1
-                }}
-              >
-                <Typography 
-                  variant="h6" 
-                  sx={{ 
-                    textAlign: 'center', 
-                    my: 2,
-                    fontWeight: 'bold' 
-                  }}
-                >
-                  {round.round === bracket.length ? 'Championship' : `Round ${round.round}`}
-                </Typography>
-                
-                <Box sx={{ px: 1 }}>
-                  {round.matches.map((match, matchIndex) => (
-                    <Card 
-                      key={match.match_id} 
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={8}>
+            <Paper sx={{ p: 2, overflowX: 'auto' }}>
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'flex-start', 
+                minWidth: bracket.length * 220 + 'px',
+                pb: 2 
+              }}>
+                {bracket.map((round, roundIndex) => (
+                  <Box 
+                    key={round.round} 
+                    sx={{ 
+                      flex: 1,
+                      minWidth: '220px',
+                      maxWidth: '280px',
+                      mx: 1
+                    }}
+                  >
+                    <Typography 
+                      variant="h6" 
                       sx={{ 
-                        mb: 3,
-                        border: match.status === 'in_progress' ? '2px solid #4caf50' : 'none'
+                        textAlign: 'center', 
+                        my: 2,
+                        fontWeight: 'bold' 
                       }}
-                      elevation={match.status === 'in_progress' ? 4 : 1}
                     >
-                      <CardContent sx={{ p: 2 }}>
-                        <Box sx={{ mb: 1 }}>
-                          {match.status === 'in_progress' && (
-                            <Chip 
-                              label="LIVE" 
-                              size="small" 
-                              color="success" 
-                              sx={{ mb: 1 }}
-                            />
-                          )}
-                        </Box>
+                      {round.round === bracket.length ? 'Championship' : `Round ${round.round}`}
+                    </Typography>
+                    
+                    <Box sx={{ px: 1 }}>
+                      {round.matches.map((match, matchIndex) => (
+                        <Card 
+                          key={match.match_id} 
+                          sx={{ 
+                            mb: 3,
+                            border: match.status === 'in_progress' ? '2px solid #4caf50' : 'none'
+                          }}
+                          elevation={match.status === 'in_progress' ? 4 : 1}
+                        >
+                          <CardContent sx={{ p: 2 }}>
+                            <Box sx={{ mb: 1 }}>
+                              {match.status === 'in_progress' && (
+                                <Chip 
+                                  label="LIVE" 
+                                  size="small" 
+                                  color="success" 
+                                  sx={{ mb: 1 }}
+                                />
+                              )}
+                            </Box>
 
-                        <Box className="team" sx={{ 
-                          p: 1, 
-                          borderRadius: 1,
-                          backgroundColor: match.team1_id ? '#f5f5f5' : 'transparent'
-                        }}>
-                          <Typography 
-                            sx={{ 
-                              fontWeight: match.team1_id ? 'bold' : 'normal',
-                              color: match.team1_id ? 'text.primary' : 'text.secondary',
-                              fontSize: '0.9rem'
-                            }}
-                          >
-                            {getTeamName(match.team1_id)}
-                          </Typography>
-                          {(match.score_team1 > 0 || match.score_team2 > 0) && (
-                            <Typography 
-                              sx={{ 
-                                fontWeight: 'bold',
-                                fontSize: '1.1rem'
-                              }}
-                            >
-                              {match.score_team1}
-                            </Typography>
-                          )}
-                        </Box>
+                            <Box className="team" sx={{ 
+                              p: 1, 
+                              borderRadius: 1,
+                              backgroundColor: match.team1_id ? '#f5f5f5' : 'transparent'
+                            }}>
+                              <Typography 
+                                sx={{ 
+                                  fontWeight: match.team1_id ? 'bold' : 'normal',
+                                  color: match.team1_id ? 'text.primary' : 'text.secondary',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                {getTeamName(match.team1_id)}
+                              </Typography>
+                              {(match.score_team1 > 0 || match.score_team2 > 0) && (
+                                <Typography 
+                                  sx={{ 
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem'
+                                  }}
+                                >
+                                  {match.score_team1}
+                                </Typography>
+                              )}
+                            </Box>
 
-                        <Box sx={{ 
-                          textAlign: 'center', 
-                          my: 1, 
-                          fontSize: '0.8rem',
-                          color: 'text.secondary' 
-                        }}>
-                          vs
-                        </Box>
+                            <Box sx={{ 
+                              textAlign: 'center', 
+                              my: 1, 
+                              fontSize: '0.8rem',
+                              color: 'text.secondary' 
+                            }}>
+                              vs
+                            </Box>
 
-                        <Box className="team" sx={{ 
-                          p: 1, 
-                          borderRadius: 1,
-                          backgroundColor: match.team2_id ? '#f5f5f5' : 'transparent'
-                        }}>
-                          <Typography 
-                            sx={{ 
-                              fontWeight: match.team2_id ? 'bold' : 'normal',
-                              color: match.team2_id ? 'text.primary' : 'text.secondary',
-                              fontSize: '0.9rem'
-                            }}
-                          >
-                            {getTeamName(match.team2_id)}
-                          </Typography>
-                          {(match.score_team1 > 0 || match.score_team2 > 0) && (
-                            <Typography 
-                              sx={{ 
-                                fontWeight: 'bold',
-                                fontSize: '1.1rem'
-                              }}
-                            >
-                              {match.score_team2}
-                            </Typography>
-                          )}
-                        </Box>
+                            <Box className="team" sx={{ 
+                              p: 1, 
+                              borderRadius: 1,
+                              backgroundColor: match.team2_id ? '#f5f5f5' : 'transparent'
+                            }}>
+                              <Typography 
+                                sx={{ 
+                                  fontWeight: match.team2_id ? 'bold' : 'normal',
+                                  color: match.team2_id ? 'text.primary' : 'text.secondary',
+                                  fontSize: '0.9rem'
+                                }}
+                              >
+                                {getTeamName(match.team2_id)}
+                              </Typography>
+                              {(match.score_team1 > 0 || match.score_team2 > 0) && (
+                                <Typography 
+                                  sx={{ 
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem'
+                                  }}
+                                >
+                                  {match.score_team2}
+                                </Typography>
+                              )}
+                            </Box>
 
-                        {match.court && (
-                          <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                            Court: {match.court}
-                          </Typography>
-                        )}
+                            {match.court && (
+                              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
+                                Court: {match.court}
+                              </Typography>
+                            )}
 
-                        {match.status === 'completed' && (
-                          <Box sx={{ mt: 1, textAlign: 'center' }}>
-                            <Chip 
-                              label="Completed" 
-                              size="small" 
-                              variant="outlined"
-                            />
-                          </Box>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Box>
+                            {match.status === 'completed' && (
+                              <Box sx={{ mt: 1, textAlign: 'center' }}>
+                                <Chip 
+                                  label="Completed" 
+                                  size="small" 
+                                  variant="outlined"
+                                />
+                              </Box>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Box>
+                  </Box>
+                ))}
               </Box>
-            ))}
-          </Box>
-        </Paper>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={12} md={4}>
+            <Box sx={{ height: isMobile ? 'auto' : 'calc(100vh - 240px)' }}>
+              <TournamentUpdatesFeed tournamentId={tournamentId} />
+            </Box>
+          </Grid>
+        </Grid>
 
         <Box sx={{ mt: 3 }}>
           <Alert severity="info">
-            This bracket updates automatically every 30 seconds. Last updated: {moment().format('h:mm:ss A')}
+            This bracket and updates feed refresh automatically every 30 seconds. Last updated: {moment().format('h:mm:ss A')}
           </Alert>
         </Box>
       </Box>

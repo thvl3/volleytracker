@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.match import Match
+from models.match_update import MatchUpdate
+from models.team import Team
 from services.auth_service import AuthService
 from functools import wraps
 
@@ -60,11 +62,45 @@ def update_score(match_id):
     if score_team1 is None or score_team2 is None:
         return jsonify({'message': 'Both scores are required'}), 400
     
-    match.update_score(score_team1, score_team2)
+    # Get team names for the update record
+    team1 = Team.get(match.team1_id) if match.team1_id else None
+    team2 = Team.get(match.team2_id) if match.team2_id else None
+    team1_name = team1.team_name if team1 else "TBD"
+    team2_name = team2.team_name if team2 else "TBD"
     
-    # Check if match has winner
+    # Check if this is a score update or match completion
     if data.get('complete', False):
+        match.update_score(score_team1, score_team2)
         match.complete_match()
+        
+        # Create match complete update
+        MatchUpdate.create(
+            tournament_id=match.tournament_id,
+            match_id=match.match_id,
+            update_type='match_complete',
+            team1_id=match.team1_id,
+            team2_id=match.team2_id,
+            score_team1=int(score_team1),
+            score_team2=int(score_team2),
+            team1_name=team1_name,
+            team2_name=team2_name
+        )
+    else:
+        # Update score
+        match.update_score(score_team1, score_team2)
+        
+        # Create score update record
+        MatchUpdate.create(
+            tournament_id=match.tournament_id,
+            match_id=match.match_id,
+            update_type='score_update',
+            team1_id=match.team1_id,
+            team2_id=match.team2_id,
+            score_team1=int(score_team1),
+            score_team2=int(score_team2),
+            team1_name=team1_name,
+            team2_name=team2_name
+        )
     
     return jsonify(match.to_dict()), 200
 

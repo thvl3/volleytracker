@@ -19,11 +19,13 @@ class DynamoDBService:
         self.TOURNAMENTS_TABLE = 'VolleyDB_Tournaments'
         self.TEAMS_TABLE = 'VolleyDB_Teams' 
         self.MATCHES_TABLE = 'VolleyDB_Matches'
+        self.MATCH_UPDATES_TABLE = 'VolleyDB_MatchUpdates'
         
         # Initialize tables
         self.tournaments_table = self.dynamodb.Table(self.TOURNAMENTS_TABLE)
         self.teams_table = self.dynamodb.Table(self.TEAMS_TABLE)
         self.matches_table = self.dynamodb.Table(self.MATCHES_TABLE)
+        self.match_updates_table = self.dynamodb.Table(self.MATCH_UPDATES_TABLE)
 
     def create_tables_if_not_exists(self):
         """Create DynamoDB tables if they don't exist"""
@@ -40,6 +42,10 @@ class DynamoDBService:
         # Create Matches table if it doesn't exist
         if self.MATCHES_TABLE not in existing_tables:
             self._create_matches_table()
+            
+        # Create Match Updates table if it doesn't exist
+        if self.MATCH_UPDATES_TABLE not in existing_tables:
+            self._create_match_updates_table()
 
     def _create_tournaments_table(self):
         """Create tournaments table"""
@@ -122,6 +128,36 @@ class DynamoDBService:
             logger.info(f"Created table: {self.MATCHES_TABLE}")
         except ClientError as e:
             logger.error(f"Error creating table {self.MATCHES_TABLE}: {e}")
+            raise
+
+    def _create_match_updates_table(self):
+        """Create match updates table"""
+        try:
+            self.client.create_table(
+                TableName=self.MATCH_UPDATES_TABLE,
+                KeySchema=[
+                    {'AttributeName': 'update_id', 'KeyType': 'HASH'}
+                ],
+                AttributeDefinitions=[
+                    {'AttributeName': 'update_id', 'AttributeType': 'S'},
+                    {'AttributeName': 'tournament_id', 'AttributeType': 'S'},
+                    {'AttributeName': 'timestamp', 'AttributeType': 'N'}
+                ],
+                GlobalSecondaryIndexes=[
+                    {
+                        'IndexName': 'TournamentUpdatesIndex',
+                        'KeySchema': [
+                            {'AttributeName': 'tournament_id', 'KeyType': 'HASH'},
+                            {'AttributeName': 'timestamp', 'KeyType': 'RANGE'}
+                        ],
+                        'Projection': {'ProjectionType': 'ALL'}
+                    }
+                ],
+                BillingMode='PAY_PER_REQUEST'
+            )
+            logger.info(f"Created table: {self.MATCH_UPDATES_TABLE}")
+        except ClientError as e:
+            logger.error(f"Error creating table {self.MATCH_UPDATES_TABLE}: {e}")
             raise
 
 # Create a singleton instance

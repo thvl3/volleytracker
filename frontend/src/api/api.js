@@ -51,6 +51,7 @@ export const tournamentAPI = {
   getAll: () => api.get('/tournaments'),
   getById: (id) => api.get(`/tournaments/${id}`),
   getBracket: (id) => api.get(`/tournaments/${id}/bracket`),
+  getUpdates: (id, since) => api.get(`/tournaments/${id}/updates`, { params: { since } }),
   create: (data) => api.post('/tournaments', data),
   update: (id, data) => api.put(`/tournaments/${id}`, data),
   delete: (id) => api.delete(`/tournaments/${id}`),

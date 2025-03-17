@@ -2,6 +2,7 @@ import uuid
 import time
 from services.db_service import db_service
 from models.match import Match
+from boto3.dynamodb.conditions import Attr
 
 class Tournament:
     def __init__(self, tournament_id=None, name=None, start_date=None, end_date=None,
@@ -15,39 +16,85 @@ class Tournament:
         self.type = type  # 'single_elimination', 'double_elimination', 'round_robin'
     
     @classmethod
-    def create(cls, name, start_date=None, end_date=None, location=None, type='single_elimination'):
-        tournament = cls(
-            name=name,
-            start_date=start_date,
-            end_date=end_date,
-            location=location,
-            type=type
-        )
+    def create(cls, tournament):
+        """Create a new tournament"""
+        tournament_id = str(uuid.uuid4())
+        tournament.tournament_id = tournament_id
         
-        # Save to DynamoDB
-        db_service.tournaments_table.put_item(Item=tournament.to_dict())
+        # Create item with tournament_id as the primary key
+        item = {
+            'tournament_id': tournament_id,
+            'name': tournament.name,
+            'start_date': tournament.start_date,
+            'end_date': tournament.end_date,
+            'location': tournament.location,
+            'type': tournament.type,
+            'status': tournament.status
+        }
+        
+        db_service.tournaments_table.put_item(Item=item)
         return tournament
-    
+
     @classmethod
     def get(cls, tournament_id):
-        response = db_service.tournaments_table.get_item(Key={'tournament_id': tournament_id})
-        if 'Item' in response:
-            return cls(**response['Item'])
-        return None
-    
+        """Get a tournament by ID"""
+        response = db_service.tournaments_table.get_item(
+            Key={
+                'tournament_id': tournament_id
+            }
+        )
+        
+        item = response.get('Item')
+        if not item:
+            return None
+        
+        return cls(**item)
+
     @classmethod
     def get_all(cls):
+        """Get all tournaments"""
         response = db_service.tournaments_table.scan()
-        return [cls(**item) for item in response.get('Items', [])]
-    
-    def update(self):
-        db_service.tournaments_table.put_item(Item=self.to_dict())
-        return self
+        
+        tournaments = []
+        for item in response.get('Items', []):
+            # Clean any keys that aren't part of the Tournament model
+            tournament_data = {
+                'tournament_id': item.get('tournament_id'),
+                'name': item.get('name'),
+                'start_date': item.get('start_date'),
+                'end_date': item.get('end_date'),
+                'location': item.get('location'),
+                'type': item.get('type'),
+                'status': item.get('status')
+            }
+            tournaments.append(cls(**tournament_data))
+            
+        return tournaments
+
+    @classmethod
+    def update(cls, tournament):
+        """Update a tournament"""
+        item = {
+            'tournament_id': tournament.tournament_id,
+            'name': tournament.name,
+            'start_date': tournament.start_date,
+            'end_date': tournament.end_date,
+            'location': tournament.location,
+            'type': tournament.type,
+            'status': tournament.status
+        }
+        
+        db_service.tournaments_table.put_item(Item=item)
+        return tournament
     
     def delete(self):
-        # This would also need to clean up related matches and teams
-        db_service.tournaments_table.delete_item(Key={'tournament_id': self.tournament_id})
-    
+        """Delete a tournament and optionally clean up related data"""
+        db_service.tournaments_table.delete_item(
+            Key={'tournament_id': self.tournament_id}
+        )
+        # Note: In a real application, you'd want to handle deletion of related 
+        # teams and matches here as well, or implement a cascading delete function
+        
     def create_bracket(self, team_ids):
         """
         Create a bracket for the tournament based on the list of team IDs
@@ -124,7 +171,7 @@ class Tournament:
         
         # Set tournament to in_progress
         self.status = 'in_progress'
-        self.update()
+        Tournament.update(self)
         
         # Return all matches by round
         all_matches = []
@@ -155,6 +202,7 @@ class Tournament:
         return result
     
     def to_dict(self):
+        """Convert tournament to dictionary"""
         return {
             'tournament_id': self.tournament_id,
             'name': self.name,

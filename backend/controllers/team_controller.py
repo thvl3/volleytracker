@@ -27,10 +27,11 @@ def get_teams():
     """Get all teams for a tournament"""
     tournament_id = request.args.get('tournament_id')
     
-    if not tournament_id:
-        return jsonify({'message': 'Tournament ID is required'}), 400
+    if tournament_id:
+        teams = Team.get_all(tournament_id)
+    else:
+        teams = Team.get_all()
     
-    teams = Team.get_by_tournament(tournament_id)
     return jsonify([team.to_dict() for team in teams]), 200
 
 @team_bp.route('/<team_id>', methods=['GET'])
@@ -76,7 +77,9 @@ def update_team(team_id):
     if 'players' in data:
         team.players = data['players']
     
-    team.update()
+    # Save the updated team
+    team = Team.update(team)
+    
     return jsonify(team.to_dict()), 200
 
 @team_bp.route('/<team_id>', methods=['DELETE'])

@@ -64,13 +64,17 @@ def create_tournament():
     if not name:
         return jsonify({'message': 'Tournament name is required'}), 400
     
-    tournament = Tournament.create(
+    # Create a Tournament object with the data
+    tournament = Tournament(
         name=name,
         start_date=start_date,
         end_date=end_date,
         location=location,
         type=tournament_type
     )
+    
+    # Use the create method to save it
+    tournament = Tournament.create(tournament)
     
     return jsonify(tournament.to_dict()), 201
 
@@ -100,7 +104,9 @@ def update_tournament(tournament_id):
     if 'status' in data:
         tournament.status = data['status']
     
-    tournament.update()
+    # Save the updated tournament
+    tournament = Tournament.update(tournament)
+    
     return jsonify(tournament.to_dict()), 200
 
 @tournament_bp.route('/<tournament_id>', methods=['DELETE'])

@@ -12,12 +12,12 @@ class Config:
     DYNAMODB_ENDPOINT = os.environ.get('DYNAMODB_ENDPOINT', None)
     
     # DynamoDB Tables
-    TEAMS_TABLE = os.environ.get('TEAMS_TABLE', 'volleytracker-teams')
-    MATCHES_TABLE = os.environ.get('MATCHES_TABLE', 'volleytracker-matches')
-    TOURNAMENTS_TABLE = os.environ.get('TOURNAMENTS_TABLE', 'volleytracker-tournaments')
+    TEAMS_TABLE = os.environ.get('TEAMS_TABLE', 'VolleyDB_Teams')
+    MATCHES_TABLE = os.environ.get('MATCHES_TABLE', 'VolleyDB_Matches')
+    TOURNAMENTS_TABLE = os.environ.get('TOURNAMENTS_TABLE', 'VolleyDB_Tournaments')
     
     # Admin configuration
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Change in production!
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'password')  # Change in production!
     
     # JWT Settings
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt_secret_change_in_production')

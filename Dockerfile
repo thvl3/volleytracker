@@ -1,43 +1,38 @@
-# Build stage for React frontend
-FROM node:16-alpine AS frontend-build
+# Build frontend
+FROM node:18 AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
-COPY frontend/ ./
-# Copy frontend .env file if it exists
-COPY frontend/.env* ./
+COPY frontend/ .
 RUN npm run build
 
-# Backend stage
+# Build backend and setup Nginx
 FROM python:3.9-slim
 WORKDIR /app
 
-# Install dependencies
+# Install Nginx and supervisor
+RUN apt-get update && apt-get install -y nginx supervisor && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm /etc/nginx/sites-enabled/default
+
+# Install Python dependencies
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 # Copy backend code
-COPY backend/ ./backend/
+COPY backend/ .
 
-# Copy built frontend from previous stage
-COPY --from=frontend-build /app/frontend/build ./backend/static/
+# Copy frontend build from previous stage
+COPY --from=frontend-build /app/frontend/build /app/static
 
-# Copy backend .env file if it exists
-COPY backend/.env* ./
+# Copy Nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Set environment variables
-ENV FLASK_APP=backend/app.py
-ENV PYTHONPATH=/app
+# Setup supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Expose port
-EXPOSE 5000
+EXPOSE 80 5000
 
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "backend.wsgi:app"]
-
-# Nginx stage
-FROM nginx:alpine
-COPY --from=frontend-build /app/frontend/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Start supervisor (which manages Nginx and Gunicorn)
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

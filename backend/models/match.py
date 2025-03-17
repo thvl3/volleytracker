@@ -99,11 +99,11 @@ class Match:
     
     def update_score(self, score_team1, score_team2):
         """Update match scores and potentially status"""
-        self.score_team1 = score_team1
-        self.score_team2 = score_team2
+        self.score_team1 = int(score_team1)
+        self.score_team2 = int(score_team2)
         
         # If scores are provided, automatically set to in_progress
-        if self.status == 'scheduled' and (score_team1 > 0 or score_team2 > 0):
+        if self.status == 'scheduled' and (self.score_team1 > 0 or self.score_team2 > 0):
             self.status = 'in_progress'
         
         # Update in DynamoDB
@@ -113,7 +113,7 @@ class Match:
     def complete_match(self):
         """Mark match as completed and update next match if applicable"""
         self.status = 'completed'
-        winner_id = self.team1_id if self.score_team1 > self.score_team2 else self.team2_id
+        winner_id = self.team1_id if int(self.score_team1) > int(self.score_team2) else self.team2_id
         
         # Update the next match in the bracket if it exists
         if self.next_match_id:

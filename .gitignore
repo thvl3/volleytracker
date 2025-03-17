@@ -55,6 +55,8 @@ node_modules/
 credentials.csv
 .aws/
 .aws-config
+aws/
+awscliv2.zip
 
 # Environment variables
 .env

@@ -257,16 +257,16 @@ class DynamoDBService:
             raise
     
     def _create_pool_standings_table(self):
-        """Create pool standings table"""
+        """Create the pool standings table"""
         try:
-            self.client.create_table(
+            table = self.dynamodb.create_table(
                 TableName=self.POOL_STANDINGS_TABLE,
                 KeySchema=[
-                    {'AttributeName': 'standing_id', 'KeyType': 'HASH'}
+                    {'AttributeName': 'standing_id', 'KeyType': 'HASH'}  # Primary key
                 ],
                 AttributeDefinitions=[
                     {'AttributeName': 'standing_id', 'AttributeType': 'S'},
-                    {'AttributeName': 'pool_id', 'AttributeType': 'S'}
+                    {'AttributeName': 'pool_id', 'AttributeType': 'S'}  # For GSI
                 ],
                 GlobalSecondaryIndexes=[
                     {
@@ -274,14 +274,17 @@ class DynamoDBService:
                         'KeySchema': [
                             {'AttributeName': 'pool_id', 'KeyType': 'HASH'}
                         ],
-                        'Projection': {'ProjectionType': 'ALL'}
+                        'Projection': {
+                            'ProjectionType': 'ALL'
+                        }
                     }
                 ],
                 BillingMode='PAY_PER_REQUEST'
             )
             logger.info(f"Created table: {self.POOL_STANDINGS_TABLE}")
-        except ClientError as e:
-            logger.error(f"Error creating table {self.POOL_STANDINGS_TABLE}: {e}")
+            return table
+        except Exception as e:
+            logger.error(f"Error creating pool standings table: {e}")
             raise
 
 # Create a singleton instance

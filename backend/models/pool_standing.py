@@ -90,37 +90,51 @@ class PoolStanding:
             print(f"Error querying pool standings: {e}")
             return []
     
-    def update_stats(self, match_result):
-        """Update standings based on a match result"""
-        if match_result.team1_id == self.team_id:
-            # Team being updated was team1 in the match
-            self.sets_won += match_result.calculate_team1_sets_won()
-            self.sets_lost += match_result.calculate_team2_sets_won()
-            self.points_scored += sum(match_result.scores_team1)
-            self.points_allowed += sum(match_result.scores_team2)
-            
-            # Update W/L/T record
-            if match_result.get_winner_id() == self.team_id:
-                self.wins += 1
-            elif match_result.get_winner_id() is None:
-                self.ties += 1
-            elif match_result.get_winner_id() != self.team_id:
-                self.losses += 1
+    def update_stats(self, match_result=None, wins=0, losses=0, ties=0, sets_won=0, sets_lost=0, points_scored=0, points_allowed=0):
+        """
+        Update standings based on a match result or individual stat increments.
+        Can be called with either a match_result object or individual stat increments.
+        """
+        if match_result:
+            # Traditional update based on match result
+            if match_result.team1_id == self.team_id:
+                # Team being updated was team1 in the match
+                self.sets_won += match_result.calculate_team1_sets_won()
+                self.sets_lost += match_result.calculate_team2_sets_won()
+                self.points_scored += sum(match_result.scores_team1)
+                self.points_allowed += sum(match_result.scores_team2)
                 
-        elif match_result.team2_id == self.team_id:
-            # Team being updated was team2 in the match
-            self.sets_won += match_result.calculate_team2_sets_won()
-            self.sets_lost += match_result.calculate_team1_sets_won()
-            self.points_scored += sum(match_result.scores_team2)
-            self.points_allowed += sum(match_result.scores_team1)
-            
-            # Update W/L/T record
-            if match_result.get_winner_id() == self.team_id:
-                self.wins += 1
-            elif match_result.get_winner_id() is None:
-                self.ties += 1
-            elif match_result.get_winner_id() != self.team_id:
-                self.losses += 1
+                # Update W/L/T record
+                if match_result.get_winner_id() == self.team_id:
+                    self.wins += 1
+                elif match_result.get_winner_id() is None:
+                    self.ties += 1
+                elif match_result.get_winner_id() != self.team_id:
+                    self.losses += 1
+                    
+            elif match_result.team2_id == self.team_id:
+                # Team being updated was team2 in the match
+                self.sets_won += match_result.calculate_team2_sets_won()
+                self.sets_lost += match_result.calculate_team1_sets_won()
+                self.points_scored += sum(match_result.scores_team2)
+                self.points_allowed += sum(match_result.scores_team1)
+                
+                # Update W/L/T record
+                if match_result.get_winner_id() == self.team_id:
+                    self.wins += 1
+                elif match_result.get_winner_id() is None:
+                    self.ties += 1
+                elif match_result.get_winner_id() != self.team_id:
+                    self.losses += 1
+        else:
+            # Update based on individual stat increments
+            self.wins += wins
+            self.losses += losses
+            self.ties += ties
+            self.sets_won += sets_won
+            self.sets_lost += sets_lost
+            self.points_scored += points_scored
+            self.points_allowed += points_allowed
         
         self.update()
         return self
@@ -140,7 +154,11 @@ class PoolStanding:
         total_matches = self.wins + self.losses + self.ties
         if total_matches == 0:
             return 0
-        return (self.wins + (0.5 * self.ties)) / total_matches
+        # Convert to float to avoid decimal type issues
+        wins = float(self.wins)
+        ties = float(self.ties)
+        total = float(total_matches)
+        return (wins + (0.5 * ties)) / total
     
     def update(self):
         """Update an existing pool standing"""

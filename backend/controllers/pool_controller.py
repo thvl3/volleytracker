@@ -296,4 +296,36 @@ def get_pool_rankings(pool_id):
         return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting pool rankings: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@pool_controller.route('/pools/<pool_id>/initialize-standings', methods=['POST'])
+def initialize_pool_standings(pool_id):
+    """Initialize standings for all teams in a pool"""
+    try:
+        pool = Pool.get(pool_id)
+        if not pool:
+            return jsonify({'error': 'Pool not found'}), 404
+            
+        # Create standings for each team in the pool
+        created_standings = []
+        for team_id in pool.teams:
+            # Check if standings already exist
+            existing = PoolStanding.get_by_team_and_pool(team_id, pool_id)
+            if not existing:
+                # Create new standings
+                standing = PoolStanding.create(
+                    pool_id=pool_id,
+                    tournament_id=pool.tournament_id,
+                    team_id=team_id
+                )
+                created_standings.append(standing.to_dict())
+            else:
+                created_standings.append(existing.to_dict())
+                
+        return jsonify({
+            'message': f'Created {len(created_standings)} standings',
+            'standings': created_standings
+        }), 200
+    except Exception as e:
+        logger.error(f"Error initializing pool standings: {str(e)}")
         return jsonify({'error': str(e)}), 500 

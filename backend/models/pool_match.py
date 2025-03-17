@@ -7,7 +7,7 @@ class PoolMatch:
     def __init__(self, match_id=None, pool_id=None, tournament_id=None, 
                  team1_id=None, team2_id=None, scores_team1=None, scores_team2=None,
                  status='scheduled', location_id=None, court_number=None, 
-                 scheduled_time=None, num_sets=2, created_at=None):
+                 scheduled_time=None, num_sets=2, created_at=None, is_pool_match=True):
         self.match_id = match_id or str(uuid.uuid4())
         self.pool_id = pool_id
         self.tournament_id = tournament_id
@@ -21,10 +21,11 @@ class PoolMatch:
         self.scheduled_time = scheduled_time or int(time.time())
         self.num_sets = num_sets  # Default 2 sets for pool play
         self.created_at = created_at or int(time.time())
+        self.is_pool_match = is_pool_match
     
     @classmethod
     def create(cls, pool_id, tournament_id, team1_id, team2_id, 
-               location_id=None, court_number=None, scheduled_time=None, num_sets=2):
+               location_id=None, court_number=None, scheduled_time=None, num_sets=2, is_pool_match=True):
         """Create a new pool match"""
         match = cls(
             pool_id=pool_id,
@@ -34,7 +35,8 @@ class PoolMatch:
             location_id=location_id,
             court_number=court_number,
             scheduled_time=scheduled_time,
-            num_sets=num_sets
+            num_sets=num_sets,
+            is_pool_match=is_pool_match
         )
         
         # Save to DynamoDB
@@ -129,19 +131,19 @@ class PoolMatch:
                   if self.scores_team2[i] > self.scores_team1[i])
     
     def get_winner_id(self):
-        """Get the ID of the winning team (or None if tied or incomplete)"""
+        """Get the ID of the winning team"""
         if self.status != 'completed':
             return None
             
-        team1_sets = self.calculate_team1_sets_won()
-        team2_sets = self.calculate_team2_sets_won()
+        sets_team1 = sum(1 for s1, s2 in zip(self.scores_team1, self.scores_team2) if s1 > s2)
+        sets_team2 = sum(1 for s1, s2 in zip(self.scores_team1, self.scores_team2) if s2 > s1)
         
-        if team1_sets > team2_sets:
+        if sets_team1 > sets_team2:
             return self.team1_id
-        elif team2_sets > team1_sets:
+        elif sets_team2 > sets_team1:
             return self.team2_id
-        else:
-            return None  # Tied (possible in pool play)
+        
+        return None  # Tie
     
     def get_points_differential(self, team_id):
         """Calculate points differential for a specific team"""
@@ -152,6 +154,37 @@ class PoolMatch:
         else:
             return 0  # Team not in this match
     
+    def update_set_score(self, set_number, team1_score, team2_score):
+        """Update the score for a specific set"""
+        if set_number < 1 or set_number > self.num_sets:
+            raise ValueError(f"Set number must be between 1 and {self.num_sets}")
+            
+        # Ensure scores lists are initialized with enough elements
+        while len(self.scores_team1) < self.num_sets:
+            self.scores_team1.append(0)
+        while len(self.scores_team2) < self.num_sets:
+            self.scores_team2.append(0)
+            
+        # Update scores for the specific set
+        self.scores_team1[set_number - 1] = team1_score
+        self.scores_team2[set_number - 1] = team2_score
+        
+        # Update match status based on scores
+        if self._is_match_complete():
+            self.status = 'completed'
+        elif any(s1 > 0 or s2 > 0 for s1, s2 in zip(self.scores_team1, self.scores_team2)):
+            self.status = 'in_progress'
+            
+        # Save changes
+        self.update()
+        return self
+        
+    def _is_match_complete(self):
+        """Check if the match is complete"""
+        # For pool play, all sets must be played
+        return len([s for s in self.scores_team1 if s > 0]) == self.num_sets and \
+               len([s for s in self.scores_team2 if s > 0]) == self.num_sets
+               
     def update(self):
         """Update an existing pool match"""
         db_service.pool_matches_table.put_item(Item=self.to_dict())
@@ -178,5 +211,6 @@ class PoolMatch:
             'court_number': self.court_number,
             'scheduled_time': self.scheduled_time,
             'num_sets': self.num_sets,
-            'created_at': self.created_at
+            'created_at': self.created_at,
+            'is_pool_match': self.is_pool_match
         } 

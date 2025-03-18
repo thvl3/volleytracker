@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Base API URL from environment variable or default to localhost
-const baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const baseURL = process.env.REACT_APP_API_URL || '/api';
 
 // Create axios instance
 const api = axios.create({
@@ -27,7 +27,7 @@ api.interceptors.request.use(
 
 // Add response interceptor for error handling
 api.interceptors.response.use(
-  response => response,
+  response => response.data,  // Return just the data from successful responses
   error => {
     if (error.response && error.response.status === 401) {
       // If unauthorized, redirect to login
@@ -42,8 +42,8 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (password) => api.post('/auth/login', { password }),
-  validate: (token) => api.post('/auth/validate', { token }),
+  login: (data) => api.post('/admin/login', data),
+  validate: (token) => api.post('/admin/validate', { token }),
 };
 
 // Tournament API
@@ -60,7 +60,8 @@ export const tournamentAPI = {
   getPools: (id) => api.get(`/tournaments/${id}/pools`),
   getPoolRankings: (id) => api.get(`/tournaments/${id}/rankings`),
   completePoolPlay: (id) => api.post(`/tournaments/${id}/complete-pool-play`),
-  createBracketFromPools: (id) => api.post(`/tournaments/${id}/create-bracket-from-pools`),
+  createBracketFromPools: (id, bracketSize) => api.post(`/tournaments/${id}/create-bracket-from-pools`, { bracket_size: bracketSize }),
+  getMatches: (id) => api.get('/matches', { params: { tournament_id: id } }),
 };
 
 // Team API
@@ -80,13 +81,13 @@ export const matchAPI = {
     return api.get('/matches', { params });
   },
   getById: (id) => api.get(`/matches/${id}`),
-  updateScore: (id, score_team1, score_team2, complete = false) => 
-    api.post(`/matches/${id}/score`, { score_team1, score_team2, complete }),
+  updateScore: (id, scores_team1, scores_team2, complete = false) => 
+    api.post(`/matches/${id}/score`, { scores_team1, scores_team2, complete }),
   updateCourt: (id, court) => api.post(`/matches/${id}/court`, { court }),
   updateSchedule: (id, scheduledTime) => api.post(`/matches/${id}/schedule`, { scheduled_time: scheduledTime }),
 };
 
-// Pool API - New
+// Pool API
 export const poolAPI = {
   getById: (id) => api.get(`/pools/${id}`),
   getMatches: (id) => api.get(`/pools/${id}/matches`),
@@ -96,7 +97,7 @@ export const poolAPI = {
   initializeStandings: (id) => api.post(`/pools/${id}/initialize-standings`),
 };
 
-// Pool Match API - New
+// Pool Match API
 export const poolMatchAPI = {
   getById: (id) => api.get(`/pool-matches/${id}`),
   updateScore: (id, setNumber, team1Score, team2Score) => 
@@ -104,7 +105,7 @@ export const poolMatchAPI = {
   updateSchedule: (id, data) => api.put(`/pool-matches/${id}/schedule`, data),
 };
 
-// Location API - New
+// Location API
 export const locationAPI = {
   getAll: () => api.get('/locations'),
   getById: (id) => api.get(`/locations/${id}`),

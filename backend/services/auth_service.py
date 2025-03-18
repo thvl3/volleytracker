@@ -14,7 +14,6 @@ class AuthService:
         """Generate a JWT token for the admin role"""
         payload = {
             'role': role,
-            'exp': time.time() + Config.JWT_ACCESS_TOKEN_EXPIRES,
             'iat': time.time()
         }
         
@@ -25,9 +24,6 @@ class AuthService:
         """Validate a JWT token"""
         try:
             payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=['HS256'])
-            if payload['exp'] < time.time():
-                return None  # Token expired
-            
             return payload
-        except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
+        except jwt.InvalidTokenError:
             return None

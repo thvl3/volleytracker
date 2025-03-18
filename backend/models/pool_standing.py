@@ -2,6 +2,7 @@ import uuid
 import time
 from services.db_service import db_service
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
 class PoolStanding:
     def __init__(self, standing_id=None, pool_id=None, tournament_id=None, team_id=None,
@@ -11,14 +12,14 @@ class PoolStanding:
         self.pool_id = pool_id
         self.tournament_id = tournament_id
         self.team_id = team_id
-        self.wins = wins
-        self.losses = losses
-        self.ties = ties
-        self.sets_won = sets_won
-        self.sets_lost = sets_lost
-        self.points_scored = points_scored
-        self.points_allowed = points_allowed
-        self.rank = rank  # Final ranking in the pool (1st, 2nd, 3rd, 4th)
+        self.wins = int(wins) if isinstance(wins, (str, float, Decimal)) else wins
+        self.losses = int(losses) if isinstance(losses, (str, float, Decimal)) else losses
+        self.ties = int(ties) if isinstance(ties, (str, float, Decimal)) else ties
+        self.sets_won = int(sets_won) if isinstance(sets_won, (str, float, Decimal)) else sets_won
+        self.sets_lost = int(sets_lost) if isinstance(sets_lost, (str, float, Decimal)) else sets_lost
+        self.points_scored = int(points_scored) if isinstance(points_scored, (str, float, Decimal)) else points_scored
+        self.points_allowed = int(points_allowed) if isinstance(points_allowed, (str, float, Decimal)) else points_allowed
+        self.rank = int(rank) if rank is not None and isinstance(rank, (str, float, Decimal)) else rank
         self.created_at = created_at or int(time.time())
     
     @classmethod

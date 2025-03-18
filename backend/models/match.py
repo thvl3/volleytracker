@@ -2,48 +2,57 @@ import uuid
 import time
 from services.db_service import db_service
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
 class Match:
-    def __init__(self, match_id=None, tournament_id=None, team1_id=None, team2_id=None, 
-                 score_team1=0, score_team2=0, status='scheduled', court=None, 
-                 scheduled_time=None, next_match_id=None, round_number=None,
-                 location_id=None, court_number=None, scores_team1=None, scores_team2=None,
-                 num_sets=3, is_pool_match=False):
+    def __init__(self, match_id=None, tournament_id=None, team1_id=None, team2_id=None,
+                 score_team1=0, score_team2=0, status='scheduled', round_number=None,
+                 match_number=None, next_match_id=None, prev_match1_id=None, prev_match2_id=None,
+                 location_id=None, court_number=None, start_time=None, end_time=None,
+                 bracket=None, num_sets=3, created_at=None, scores_team1=None, scores_team2=None):
         self.match_id = match_id or str(uuid.uuid4())
         self.tournament_id = tournament_id
         self.team1_id = team1_id
         self.team2_id = team2_id
-        self.score_team1 = score_team1  # Legacy field for total score
-        self.score_team2 = score_team2  # Legacy field for total score
-        self.scores_team1 = scores_team1 or []  # Scores by set for team1
-        self.scores_team2 = scores_team2 or []  # Scores by set for team2
+        self.score_team1 = int(score_team1) if isinstance(score_team1, (str, float, Decimal)) else score_team1
+        self.score_team2 = int(score_team2) if isinstance(score_team2, (str, float, Decimal)) else score_team2
         self.status = status  # 'scheduled', 'in_progress', 'completed'
-        self.court = court  # Legacy field
-        self.location_id = location_id  # New field - references Location object
-        self.court_number = court_number  # Specific court number within location
-        self.scheduled_time = scheduled_time or int(time.time())
+        self.round_number = int(round_number) if round_number is not None and isinstance(round_number, (str, float, Decimal)) else round_number
+        self.match_number = int(match_number) if match_number is not None and isinstance(match_number, (str, float, Decimal)) else match_number
         self.next_match_id = next_match_id
-        self.round_number = round_number
-        self.num_sets = num_sets  # Number of sets to be played (2 for pool, 3 for bracket)
-        self.is_pool_match = is_pool_match  # Whether this is a pool match or bracket match
+        self.prev_match1_id = prev_match1_id
+        self.prev_match2_id = prev_match2_id
+        self.location_id = location_id
+        self.court_number = int(court_number) if court_number is not None and isinstance(court_number, (str, float, Decimal)) else court_number
+        self.start_time = int(start_time) if start_time is not None and isinstance(start_time, (str, float, Decimal)) else start_time
+        self.end_time = int(end_time) if end_time is not None and isinstance(end_time, (str, float, Decimal)) else end_time
+        self.bracket = bracket  # 'Gold', 'Silver', 'Bronze'
+        self.num_sets = int(num_sets) if isinstance(num_sets, (str, float, Decimal)) else num_sets
+        self.created_at = created_at or int(time.time())
+        self.scores_team1 = [int(s) if isinstance(s, (str, float, Decimal)) else s for s in (scores_team1 or [])] or [0] * self.num_sets
+        self.scores_team2 = [int(s) if isinstance(s, (str, float, Decimal)) else s for s in (scores_team2 or [])] or [0] * self.num_sets
+        self.is_pool_match = False  # Bracket matches are not pool matches
     
     @classmethod
-    def create(cls, tournament_id, team1_id=None, team2_id=None, court=None, 
+    def create(cls, tournament_id, team1_id=None, team2_id=None, 
                scheduled_time=None, next_match_id=None, round_number=None,
-               location_id=None, court_number=None, num_sets=None, is_pool_match=False):
+               location_id=None, court_number=None, num_sets=3, match_number=None,
+               bracket=None, prev_match1_id=None, prev_match2_id=None):
         """Create a new match"""
         match = cls(
             tournament_id=tournament_id,
             team1_id=team1_id,
             team2_id=team2_id,
-            court=court,
-            location_id=location_id,
-            court_number=court_number,
-            scheduled_time=scheduled_time,
+            start_time=scheduled_time,
             next_match_id=next_match_id,
             round_number=round_number,
+            location_id=location_id,
+            court_number=court_number,
             num_sets=num_sets,
-            is_pool_match=is_pool_match
+            match_number=match_number,
+            bracket=bracket,
+            prev_match1_id=prev_match1_id,
+            prev_match2_id=prev_match2_id
         )
         
         # Save to DynamoDB
@@ -83,7 +92,7 @@ class Match:
             
             matches = []
             for item in response.get('Items', []):
-                # Clean any keys that aren't part of the Match model
+                # Include all fields from the Match model
                 match_data = {
                     'match_id': item.get('match_id'),
                     'tournament_id': item.get('tournament_id'),
@@ -92,10 +101,20 @@ class Match:
                     'score_team1': item.get('score_team1', 0),
                     'score_team2': item.get('score_team2', 0),
                     'status': item.get('status', 'scheduled'),
-                    'court': item.get('court'),
-                    'scheduled_time': item.get('scheduled_time'),
+                    'round_number': item.get('round_number'),
+                    'match_number': item.get('match_number'),
                     'next_match_id': item.get('next_match_id'),
-                    'round_number': item.get('round_number')
+                    'prev_match1_id': item.get('prev_match1_id'),
+                    'prev_match2_id': item.get('prev_match2_id'),
+                    'location_id': item.get('location_id'),
+                    'court_number': item.get('court_number'),
+                    'start_time': item.get('start_time'),
+                    'end_time': item.get('end_time'),
+                    'bracket': item.get('bracket'),
+                    'num_sets': item.get('num_sets', 3),
+                    'created_at': item.get('created_at'),
+                    'scores_team1': item.get('scores_team1', []),
+                    'scores_team2': item.get('scores_team2', [])
                 }
                 matches.append(cls(**match_data))
                 
@@ -248,15 +267,20 @@ class Match:
             'team2_id': self.team2_id,
             'score_team1': self.score_team1,
             'score_team2': self.score_team2,
-            'scores_team1': self.scores_team1,
-            'scores_team2': self.scores_team2,
             'status': self.status,
-            'court': self.court,
-            'location_id': self.location_id,
-            'court_number': self.court_number,
-            'scheduled_time': self.scheduled_time,
-            'next_match_id': self.next_match_id,
             'round_number': self.round_number,
+            'match_number': self.match_number,
+            'next_match_id': self.next_match_id,
+            'prev_match1_id': self.prev_match1_id,
+            'prev_match2_id': self.prev_match2_id,
+            'location_id': self.location_id,
+            'court': self.court_number,
+            'court_number': self.court_number,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'bracket': self.bracket,
             'num_sets': self.num_sets,
-            'is_pool_match': self.is_pool_match
+            'created_at': self.created_at,
+            'scores_team1': self.scores_team1,
+            'scores_team2': self.scores_team2
         }

@@ -11,6 +11,7 @@ import logging
 import math
 import random
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,13 @@ def create_pool():
         
         # Initialize standings
         for team_id in team_ids:
-            PoolStanding.create(
+            standing = PoolStanding.create(
                 pool_id=pool.pool_id,
                 tournament_id=tournament_id,
-                team_id=team_id,
+                team_id=team_id
+            )
+            # Initialize stats after creation
+            standing.update_stats(
                 wins=0,
                 losses=0,
                 ties=0,
@@ -132,10 +136,13 @@ def update_pool_teams(pool_id):
         
         # Create new standings
         for team_id in team_ids:
-            PoolStanding.create(
+            standing = PoolStanding.create(
                 pool_id=pool.pool_id,
                 tournament_id=pool.tournament_id,
-                team_id=team_id,
+                team_id=team_id
+            )
+            # Initialize stats after creation
+            standing.update_stats(
                 wins=0,
                 losses=0,
                 ties=0,
@@ -226,12 +233,19 @@ def get_pool_rankings(pool_id):
         # Get standings
         standings = PoolStanding.get_by_pool(pool_id)
         
-        # Calculate rankings
-        for standing in standings:
-            standing.assign_rank()
+        # Sort standings by win percentage and point differential
+        sorted_standings = sorted(
+            standings,
+            key=lambda s: (
+                -(s.wins / max(1, s.wins + s.losses + s.ties)),  # Win percentage (descending)
+                -(s.sets_won / max(1, s.sets_won + s.sets_lost)),  # Sets win percentage (descending)
+                -(s.points_scored - s.points_allowed)  # Point differential (descending)
+            )
+        )
         
-        # Sort by rank
-        sorted_standings = sorted(standings, key=lambda s: s.rank if s.rank else 999)
+        # Assign ranks based on sorted order
+        for i, standing in enumerate(sorted_standings, 1):
+            standing.assign_rank(i)
         
         # Convert to dict and add team names
         result = []
@@ -240,6 +254,10 @@ def get_pool_rankings(pool_id):
             team = Team.get(standing.team_id)
             if team:
                 standing_dict['team_name'] = team.team_name
+                standing_dict['team'] = {
+                    'team_id': team.team_id,
+                    'team_name': team.team_name
+                }
             result.append(standing_dict)
         
         return jsonify(result), 200
@@ -277,7 +295,10 @@ def get_pools_by_tournament(tournament_id):
                         try:
                             team = Team.get(team_id)
                             if team:
-                                teams.append(team.to_dict())
+                                teams.append({
+                                    'team_id': team.team_id,
+                                    'team_name': team.team_name
+                                })
                         except Exception as team_err:
                             logger.error(f"Error getting team {team_id}: {str(team_err)}")
                             # Continue with next team
@@ -329,9 +350,17 @@ def create_pools_for_tournament(tournament_id):
         if not locations:
             return jsonify({'error': 'No locations available. Please add locations first.'}), 400
         
-        # Calculate number of pools needed (aim for 4 teams per pool)
+        # Calculate number of pools needed based on tournament settings
         num_teams = len(teams)
-        num_pools = math.ceil(num_teams / 4)
+        teams_per_pool = int(str(tournament.teams_per_pool)) if isinstance(tournament.teams_per_pool, (str, float, Decimal)) else tournament.teams_per_pool
+        
+        # Calculate number of pools needed and ensure it's an integer
+        num_pools = int(math.ceil(num_teams / teams_per_pool))
+        
+        # Update tournament with integer values
+        tournament.num_pools = num_pools
+        tournament.teams_per_pool = teams_per_pool
+        tournament.update()
         
         # If there are not enough courts across all locations, return error
         total_courts = sum(location.courts for location in locations)
@@ -399,10 +428,13 @@ def create_pools_for_tournament(tournament_id):
             
             # Initialize standings
             for team_id in team_assignments[i]:
-                PoolStanding.create(
+                standing = PoolStanding.create(
                     pool_id=pool.pool_id,
                     tournament_id=tournament_id,
-                    team_id=team_id,
+                    team_id=team_id
+                )
+                # Initialize stats after creation
+                standing.update_stats(
                     wins=0,
                     losses=0,
                     ties=0,
@@ -416,8 +448,6 @@ def create_pools_for_tournament(tournament_id):
         
         # Update tournament to have pool play
         tournament.has_pool_play = True
-        tournament.num_pools = num_pools
-        tournament.teams_per_pool = 4  # Default, may have some pools with 3
         tournament.pool_play_complete = False
         tournament.update()
         
@@ -842,4 +872,56 @@ def get_pool_matches(pool_id):
         return jsonify(result), 200
     except Exception as e:
         logger.error(f"Error getting pool matches: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@pool_controller.route('/tournaments/<tournament_id>/generate-test-scores', methods=['POST'])
+@require_auth
+def generate_test_scores(tournament_id):
+    """Generate test scores for all pool matches in a tournament"""
+    try:
+        tournament = Tournament.get(tournament_id)
+        if not tournament:
+            return jsonify({'error': 'Tournament not found'}), 404
+            
+        # Get all pools for this tournament
+        pools = Pool.get_by_tournament(tournament_id)
+        if not pools:
+            return jsonify({'error': 'No pools found for tournament'}), 404
+            
+        updated_matches = []
+        
+        # For each pool
+        for pool in pools:
+            # Get all matches in the pool
+            matches = PoolMatch.get_by_pool(pool.pool_id)
+            
+            # For each match
+            for match in matches:
+                # Generate random scores for each set
+                for set_number in range(1, match.num_sets + 1):
+                    # Generate scores that meet volleyball rules
+                    # One team needs to win by 2 points and have at least 25 points (15 for third set)
+                    min_score = 25 if set_number < 3 else 15
+                    
+                    # Randomly decide winner
+                    if random.random() < 0.5:
+                        # Team 1 wins
+                        team1_score = random.randint(min_score, min_score + 5)
+                        team2_score = random.randint(max(0, team1_score - 5), team1_score - 2)
+                    else:
+                        # Team 2 wins
+                        team2_score = random.randint(min_score, min_score + 5)
+                        team1_score = random.randint(max(0, team2_score - 5), team2_score - 2)
+                    
+                    # Update the match score
+                    match.update_set_score(set_number, team1_score, team2_score)
+                
+                updated_matches.append(match.to_dict())
+        
+        return jsonify({
+            'message': f'Generated test scores for {len(updated_matches)} matches',
+            'matches': updated_matches
+        }), 200
+    except Exception as e:
+        logger.error(f"Error generating test scores: {str(e)}")
         return jsonify({'error': str(e)}), 500 

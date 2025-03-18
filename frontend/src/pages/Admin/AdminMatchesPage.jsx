@@ -60,18 +60,20 @@ const AdminMatchesPage = () => {
       
       // Get tournament details
       const tournamentResponse = await tournamentAPI.getById(tournamentId);
-      setTournament(tournamentResponse.data);
+      setTournament(tournamentResponse);
       
       // Get matches
       const matchesResponse = await matchAPI.getByTournament(tournamentId);
-      setMatches(matchesResponse.data);
+      setMatches(Array.isArray(matchesResponse) ? matchesResponse : []);
       
       // Get teams for name lookup
       const teamsResponse = await teamAPI.getByTournament(tournamentId);
       const teamsMap = {};
-      teamsResponse.data.forEach(team => {
-        teamsMap[team.team_id] = team.team_name;
-      });
+      if (Array.isArray(teamsResponse)) {
+        teamsResponse.forEach(team => {
+          teamsMap[team.team_id] = team.team_name;
+        });
+      }
       setTeams(teamsMap);
       
       setError('');

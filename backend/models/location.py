@@ -2,6 +2,7 @@ import uuid
 import time
 from services.db_service import db_service
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
 class Location:
     def __init__(self, location_id=None, name=None, address=None, courts=1, 
@@ -9,7 +10,7 @@ class Location:
         self.location_id = location_id or str(uuid.uuid4())
         self.name = name
         self.address = address
-        self.courts = courts  # Number of courts available
+        self.courts = int(courts) if isinstance(courts, (str, float, Decimal)) else courts
         self.capacity = capacity  # Low, Medium, High
         self.features = features or []  # List of features/amenities
         self.created_at = created_at or int(time.time())

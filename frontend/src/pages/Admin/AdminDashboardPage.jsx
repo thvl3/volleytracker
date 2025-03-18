@@ -28,20 +28,21 @@ const AdminDashboardPage = () => {
       try {
         // Get all tournaments
         const tournamentsResponse = await tournamentAPI.getAll();
-        setTournaments(tournamentsResponse.data);
+        setTournaments(Array.isArray(tournamentsResponse) ? tournamentsResponse : []);
         
         // Get active matches from in-progress tournaments
-        const activeTournaments = tournamentsResponse.data.filter(t => t.status === 'in_progress');
+        const activeTournaments = (Array.isArray(tournamentsResponse) ? tournamentsResponse : [])
+          .filter(t => t.status === 'in_progress');
         if (activeTournaments.length > 0) {
           const activeId = activeTournaments[0].tournament_id;
           const matchesResponse = await matchAPI.getByTournament(activeId, 'in_progress');
-          setActiveMatches(matchesResponse.data);
+          setActiveMatches(Array.isArray(matchesResponse) ? matchesResponse : []);
         }
 
         // Get locations
         try {
           const locationsResponse = await locationAPI.getAll();
-          setLocations(locationsResponse.data);
+          setLocations(Array.isArray(locationsResponse) ? locationsResponse : []);
         } catch (err) {
           console.error('Failed to fetch locations:', err);
           setLocations([]);

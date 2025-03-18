@@ -3,6 +3,7 @@ import time
 from services.db_service import db_service
 from models.match import Match
 from boto3.dynamodb.conditions import Attr
+from decimal import Decimal
 
 class Tournament:
     def __init__(self, tournament_id=None, name=None, start_date=None, end_date=None,
@@ -19,15 +20,15 @@ class Tournament:
         self.location_id = location_id  # New field referencing the Location model
         self.status = status  # 'upcoming', 'in_progress', 'pool_play', 'bracket_play', 'completed'
         self.type = type  # 'single_elimination', 'double_elimination', 'round_robin'
-        self.min_teams = min_teams  # Minimum number of teams (8)
-        self.max_teams = max_teams  # Maximum number of teams (32)
+        self.min_teams = int(min_teams) if isinstance(min_teams, (str, float, Decimal)) else min_teams
+        self.max_teams = int(max_teams) if isinstance(max_teams, (str, float, Decimal)) else max_teams
         self.has_pool_play = has_pool_play  # Whether the tournament includes pool play
         self.pool_play_complete = pool_play_complete  # Whether pool play is completed
-        self.num_pools = num_pools  # Number of pools (calculated based on team count)
-        self.teams_per_pool = teams_per_pool  # Teams per pool (default 4)
-        self.pool_sets = pool_sets  # Number of sets in pool play matches (default 2)
-        self.bracket_size = bracket_size  # Size of the bracket (4, 8, or 12 teams)
-        self.bracket_sets = bracket_sets  # Number of sets in bracket matches (default best 2 of 3)
+        self.num_pools = int(num_pools) if isinstance(num_pools, (str, float, Decimal)) else num_pools
+        self.teams_per_pool = int(teams_per_pool) if isinstance(teams_per_pool, (str, float, Decimal)) else teams_per_pool
+        self.pool_sets = int(pool_sets) if isinstance(pool_sets, (str, float, Decimal)) else pool_sets
+        self.bracket_size = int(bracket_size) if bracket_size is not None and isinstance(bracket_size, (str, float, Decimal)) else bracket_size
+        self.bracket_sets = int(bracket_sets) if isinstance(bracket_sets, (str, float, Decimal)) else bracket_sets
     
     @classmethod
     def create(cls, tournament):
@@ -95,27 +96,31 @@ class Tournament:
         
         # Calculate number of pools needed based on team count
         num_teams = len(team_ids)
-        if num_teams < self.min_teams:
-            raise ValueError(f"Tournament requires at least {self.min_teams} teams")
-        if num_teams > self.max_teams:
-            raise ValueError(f"Tournament cannot have more than {self.max_teams} teams")
+        min_teams = int(str(self.min_teams)) if isinstance(self.min_teams, (str, float, Decimal)) else self.min_teams
+        max_teams = int(str(self.max_teams)) if isinstance(self.max_teams, (str, float, Decimal)) else self.max_teams
+        
+        if num_teams < min_teams:
+            raise ValueError(f"Tournament requires at least {min_teams} teams")
+        if num_teams > max_teams:
+            raise ValueError(f"Tournament cannot have more than {max_teams} teams")
         
         # Calculate number of pools
         # Convert any string or Decimal values to integers
-        teams_per_pool = int(self.teams_per_pool)
+        teams_per_pool = int(str(self.teams_per_pool)) if isinstance(self.teams_per_pool, (str, float, Decimal)) else self.teams_per_pool
         if teams_per_pool <= 0:
             raise ValueError("Teams per pool must be greater than 0")
         
-        num_pools = (num_teams + teams_per_pool - 1) // teams_per_pool
+        num_pools = int((num_teams + teams_per_pool - 1) // teams_per_pool)
         self.num_pools = num_pools
+        self.teams_per_pool = teams_per_pool
         
         # Update tournament status
         self.status = 'pool_play'
-        Tournament.update(self)  # Use the class method instead of instance method
+        self.update()  # Use instance method
         
         # Create pools and assign teams
         pools = []
-        for i in range(int(num_pools)):
+        for i in range(num_pools):
             pool_name = f"Pool {chr(65 + i)}"  # Pool A, Pool B, etc.
             pool = Pool.create(
                 tournament_id=self.tournament_id,
@@ -126,7 +131,7 @@ class Tournament:
         
         # Distribute teams evenly across pools
         for i, team_id in enumerate(team_ids):
-            pool_index = i % int(num_pools)
+            pool_index = i % num_pools
             pools[pool_index].add_team(team_id)
         
         return pools
@@ -213,7 +218,7 @@ class Tournament:
         
         # Update tournament status
         self.status = 'bracket_play'
-        Tournament.update(self)
+        self.update()
         
         # Return all matches by round
         all_matches = []
@@ -281,3 +286,16 @@ class Tournament:
             'bracket_size': self.bracket_size,
             'bracket_sets': self.bracket_sets
         }
+
+    def update(self):
+        """Update this tournament instance"""
+        item = self.to_dict()
+        db_service.tournaments_table.put_item(Item=item)
+        return self
+
+    @classmethod
+    def update_tournament(cls, tournament):
+        """Update a tournament (class method)"""
+        item = tournament.to_dict()
+        db_service.tournaments_table.put_item(Item=item)
+        return tournament

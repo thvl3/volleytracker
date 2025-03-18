@@ -37,59 +37,75 @@ const TournamentBracket = ({ tournamentId, isAdmin }) => {
     try {
       setLoading(true);
       // Get bracket data
-      const data = await tournamentAPI.getTournamentBracket(tournamentId);
-      console.log('Raw bracket data:', data);
+      const response = await tournamentAPI.getBracket(tournamentId);
+      console.log('Raw bracket data:', response);
       
       // Store debug info
       setDebug({
-        rawData: JSON.stringify(data, null, 2),
-        dataStructure: getDataStructureInfo(data)
+        rawData: JSON.stringify(response, null, 2),
+        dataStructure: getDataStructureInfo(response)
       });
       
-      if (data && Array.isArray(data) && data.length > 0) {
-        setBracketRounds(data);
-        
+      // Early return if response is null/undefined
+      if (!response) {
+        setError('No bracket data available. The tournament bracket may not have been created yet.');
+        setBracketRounds([]);
+        return;
+      }
+
+      // Handle the response which should be an array of round objects
+      if (Array.isArray(response)) {
+        // Each round object should have { round: number|string, matches: array } format
+        const validRounds = response.every(round => 
+          round && 
+          typeof round === 'object' && 
+          (typeof round.round === 'number' || typeof round.round === 'string') && 
+          Array.isArray(round.matches)
+        );
+
+        if (validRounds) {
+          // Sort rounds by round number (converting string to number if needed)
+          const sortedRounds = [...response].map(round => ({
+            ...round,
+            round: parseInt(round.round, 10)
+          })).sort((a, b) => a.round - b.round);
+          
+          setBracketRounds(sortedRounds);
+          setError(null);
+        } else {
+          console.error('Invalid round format in bracket data:', response);
+          setError('Invalid bracket data format');
+          setBracketRounds([]);
+          return;
+        }
+      } else {
+        console.error('Invalid bracket data format:', response);
+        setError('Invalid bracket data format');
+        setBracketRounds([]);
+        return;
+      }
+      
+      try {
         // Get tournament details to get teams
         const tournamentData = await tournamentAPI.getTournament(tournamentId);
         if (tournamentData && Array.isArray(tournamentData.teams)) {
-          const teamsById = {};
-          tournamentData.teams.forEach(team => {
-            teamsById[team.team_id] = team.team_name;
-          });
+          const teamsById = tournamentData.teams.reduce((acc, team) => {
+            if (team && team.team_id) {
+              acc[team.team_id] = team.team_name;
+            }
+            return acc;
+          }, {});
           setTeamMap(teamsById);
         }
-        
-        setError(null);
-      } else if (data && typeof data === 'object' && !Array.isArray(data)) {
-        // Handle case where data is an object but not an array
-        if (data.rounds && Array.isArray(data.rounds)) {
-          setBracketRounds(data.rounds);
-          
-          // Get team names if available in the data
-          if (data.teams && typeof data.teams === 'object') {
-            setTeamMap(data.teams);
-          } else {
-            // Get tournament details to get teams
-            const tournamentData = await tournamentAPI.getTournament(tournamentId);
-            if (tournamentData && Array.isArray(tournamentData.teams)) {
-              const teamsById = {};
-              tournamentData.teams.forEach(team => {
-                teamsById[team.team_id] = team.team_name;
-              });
-              setTeamMap(teamsById);
-            }
-          }
-          
-          setError(null);
-        } else {
-          setError('Bracket data structure is not as expected');
-        }
-      } else {
-        setError('No bracket data available. The tournament bracket may not have been created yet.');
+      } catch (teamErr) {
+        console.error('Error fetching team data:', teamErr);
+        // Don't fail the whole bracket render if team data fails
+        setTeamMap({});
       }
     } catch (err) {
       console.error('Error fetching tournament bracket:', err);
-      setError(`Failed to load tournament bracket: ${err.message || 'Unknown error'}`);
+      setError('Failed to load bracket data. Please try again later.');
+      setBracketRounds([]);
     } finally {
       setLoading(false);
     }
@@ -111,6 +127,7 @@ const TournamentBracket = ({ tournamentId, isAdmin }) => {
 
     // Sort rounds by round number
     const sortedRounds = [...bracketRounds].sort((a, b) => a.round - b.round);
+    const totalRounds = sortedRounds.length;
     
     return (
       <Box sx={{ overflowX: 'auto', mt: 3, pb: 2 }}>
@@ -124,9 +141,9 @@ const TournamentBracket = ({ tournamentId, isAdmin }) => {
                 py: 1,
                 borderRadius: '4px 4px 0 0'
               }}>
-                {roundData.round === 1 ? 'Final' : 
-                 roundData.round === 2 ? 'Semi-Finals' : 
-                 roundData.round === 3 ? 'Quarter-Finals' : 
+                {roundData.round === totalRounds ? 'Final' : 
+                 roundData.round === totalRounds - 1 ? 'Semi-Finals' : 
+                 roundData.round === totalRounds - 2 ? 'Quarter-Finals' : 
                  `Round ${roundData.round}`}
               </Typography>
               

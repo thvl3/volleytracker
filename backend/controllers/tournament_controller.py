@@ -44,7 +44,7 @@ def get_tournament(tournament_id):
         result = tournament.to_dict()
         
         # Add teams
-        teams = Team.get_all(tournament_id)
+        teams = Team.get_by_tournament(tournament_id)
         result['teams'] = [team.to_dict() for team in teams]
         
         # Add bracket if it exists
@@ -72,10 +72,10 @@ def get_tournament(tournament_id):
                 # Get pool standings
                 from models.pool_standing import PoolStanding
                 standings = PoolStanding.get_by_pool(pool.pool_id)
-                standings_data = [standing.to_dict() for standing in standings]
                 
-                # Sort standings by rank
-                standings_data.sort(key=lambda x: x.get('rank', 999))
+                # Sort standings by rank before converting to dict
+                standings.sort(key=lambda s: s.rank if s.rank is not None else float('inf'))
+                standings_data = [standing.to_dict() for standing in standings]
                 pool_dict['standings'] = standings_data
                 
                 # Get pool matches
@@ -171,6 +171,9 @@ def update_tournament(tournament_id):
     
     if 'status' in data:
         tournament.status = data['status']
+        
+    if 'type' in data:
+        tournament.type = data['type']
     
     # Save the updated tournament
     tournament = Tournament.update(tournament)

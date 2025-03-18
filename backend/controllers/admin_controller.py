@@ -30,7 +30,7 @@ def login():
         
         return jsonify({
             'token': token,
-            'expires': int(time.time() + 86400)  # 24 hours
+            'message': 'Login successful'
         }), 200
     except Exception as e:
         logger.error(f"Error during login: {str(e)}")

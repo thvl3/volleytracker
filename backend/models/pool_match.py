@@ -3,6 +3,7 @@ import time
 import logging
 from services.db_service import DynamoDBService
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 db_service = DynamoDBService()
@@ -15,14 +16,15 @@ class PoolMatch:
         self.tournament_id = tournament_id
         self.team1_id = team1_id
         self.team2_id = team2_id
-        self.scores_team1 = scores_team1 or []
-        self.scores_team2 = scores_team2 or []
+        # Convert scores from Decimal to int if needed
+        self.scores_team1 = [int(s) if isinstance(s, (str, float, Decimal)) else s for s in (scores_team1 or [])]
+        self.scores_team2 = [int(s) if isinstance(s, (str, float, Decimal)) else s for s in (scores_team2 or [])]
         self.status = status
         self.location_id = location_id
-        self.court_number = court_number
-        self.scheduled_time = scheduled_time or int(time.time())
-        self.num_sets = num_sets
-        self.created_at = created_at or int(time.time())
+        self.court_number = int(court_number) if court_number is not None and isinstance(court_number, (str, float, Decimal)) else court_number
+        self.scheduled_time = int(scheduled_time) if scheduled_time is not None and isinstance(scheduled_time, (str, float, Decimal)) else scheduled_time or int(time.time())
+        self.num_sets = int(num_sets) if isinstance(num_sets, (str, float, Decimal)) else num_sets
+        self.created_at = int(created_at) if created_at is not None and isinstance(created_at, (str, float, Decimal)) else created_at or int(time.time())
 
     @classmethod
     def create(cls, pool_id, tournament_id, team1_id, team2_id, num_sets=2, location_id=None, court_number=None, scheduled_time=None):
@@ -41,7 +43,7 @@ class PoolMatch:
             scheduled_time=scheduled_time,
             num_sets=num_sets
         )
-        match.save()
+        match.update()
         return match
     
     @classmethod
@@ -178,6 +180,10 @@ class PoolMatch:
         if not self.scores_team2 or len(self.scores_team2) < self.num_sets:
             self.scores_team2 = [0] * self.num_sets
             
+        # Convert scores to integers
+        team1_score = int(team1_score)
+        team2_score = int(team2_score)
+            
         # Update scores for the specified set
         self.scores_team1[set_number - 1] = team1_score
         self.scores_team2[set_number - 1] = team2_score
@@ -197,12 +203,12 @@ class PoolMatch:
         # Update team 1 standings
         standing1 = PoolStanding.get_by_team_and_pool(self.team1_id, self.pool_id)
         if standing1:
-            standing1.update_stats()
+            standing1.update_stats(match_result=self)
             
         # Update team 2 standings
         standing2 = PoolStanding.get_by_team_and_pool(self.team2_id, self.pool_id)
         if standing2:
-            standing2.update_stats()
+            standing2.update_stats(match_result=self)
             
         return self
         

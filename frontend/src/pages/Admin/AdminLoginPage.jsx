@@ -26,13 +26,11 @@ const AdminLoginPage = () => {
     setLoading(true);
 
     try {
-      const data = await authAPI.login({
-        password
-      });
+      const response = await authAPI.login({ password });
 
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+      if (response.token) {
+        localStorage.setItem('token', response.token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.token}`;
         navigate('/admin');
       } else {
         setError('Login failed. Please check your password.');

@@ -6,8 +6,6 @@ import {
   Box, 
   Paper, 
   Button,
-  Card,
-  CardContent,
   Grid,
   Divider,
   Chip,
@@ -19,77 +17,134 @@ import { tournamentAPI, teamAPI } from '../api/api';
 import Loading from '../components/common/Loading';
 import TournamentUpdatesFeed from '../components/TournamentUpdatesFeed';
 import moment from 'moment';
+import { formatDate, formatTime } from '../utils/dateUtils';
 
 const LiveBracketPage = () => {
   const { tournamentId } = useParams();
   const [tournament, setTournament] = useState(null);
-  const [bracket, setBracket] = useState([]);
-  const [teams, setTeams] = useState({});
+  const [bracket, setBracket] = useState(null);
+  const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Get tournament info
-        const tournamentResponse = await tournamentAPI.getById(tournamentId);
-        setTournament(tournamentResponse.data);
+        setLoading(true);
+        const [tournamentResponse, bracketResponse, teamsResponse] = await Promise.all([
+          tournamentAPI.getById(tournamentId),
+          tournamentAPI.getBracket(tournamentId),
+          teamAPI.getByTournament(tournamentId)
+        ]);
 
-        // Get bracket data
-        const bracketResponse = await tournamentAPI.getBracket(tournamentId);
-        setBracket(bracketResponse.data);
+        if (tournamentResponse) {
+          setTournament(tournamentResponse);
+        }
 
-        // Get teams for name lookup
-        const teamsResponse = await teamAPI.getByTournament(tournamentId);
-        const teamsMap = {};
-        teamsResponse.data.forEach(team => {
-          teamsMap[team.team_id] = team.team_name;
-        });
-        setTeams(teamsMap);
-      } catch (error) {
-        console.error('Error fetching bracket:', error);
-        setError('Failed to load bracket data. Please try again later.');
+        if (bracketResponse) {
+          // Sort rounds by round number
+          const sortedBracket = bracketResponse.sort((a, b) => parseInt(a.round) - parseInt(b.round));
+          setBracket(sortedBracket);
+        }
+
+        if (teamsResponse) {
+          setTeams(teamsResponse);
+        }
+      } catch (err) {
+        console.error('Error fetching tournament data:', err);
+        setError('Failed to load tournament data');
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-
-    // Set up polling for live updates
-    const intervalId = setInterval(() => {
-      fetchData();
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(intervalId);
+    const interval = setInterval(fetchData, 30000); // Poll every 30 seconds
+    return () => clearInterval(interval);
   }, [tournamentId]);
 
-  // Helper to get team name from ID
   const getTeamName = (teamId) => {
     if (!teamId) return 'TBD';
-    return teams[teamId] || teamId;
+    const team = teams.find(t => t.team_id === teamId);
+    return team ? team.team_name : 'Unknown Team';
   };
 
+  const renderMatch = (match) => (
+    <Paper
+      key={match.match_id}
+      elevation={2}
+      sx={{
+        p: 2,
+        mb: 2,
+        backgroundColor: match.status === 'completed' ? 'success.light' : 
+                         match.status === 'in_progress' ? 'warning.light' : 'background.paper',
+        border: match.status === 'in_progress' ? '2px solid' : 'none',
+        borderColor: 'warning.main'
+      }}
+    >
+      <Grid container spacing={2}>
+        <Grid item xs={12}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle2" color="text.secondary">
+              Round {match.round_number}
+            </Typography>
+            {match.court && (
+              <Chip 
+                label={`Court ${match.court}`} 
+                size="small" 
+                color="primary" 
+                variant="outlined"
+              />
+            )}
+          </Box>
+        </Grid>
+        <Grid item xs={12}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="body1">
+              {getTeamName(match.team1_id)}
+            </Typography>
+            <Typography variant="h6" sx={{ mx: 2 }}>
+              {match.score_team1} - {match.score_team2}
+            </Typography>
+            <Typography variant="body1">
+              {getTeamName(match.team2_id)}
+            </Typography>
+          </Box>
+        </Grid>
+        <Grid item xs={12}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="caption" color="text.secondary">
+              {match.scheduled_time ? formatTime(match.scheduled_time) : 'TBD'}
+            </Typography>
+            <Chip 
+              label={match.status === 'completed' ? 'Completed' : 
+                     match.status === 'in_progress' ? 'In Progress' : 'Scheduled'} 
+              size="small" 
+              color={match.status === 'completed' ? 'success' : 
+                     match.status === 'in_progress' ? 'warning' : 'default'}
+            />
+          </Box>
+        </Grid>
+      </Grid>
+    </Paper>
+  );
+
   if (loading) {
-    return <Loading />;
+    return (
+      <Container>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+          <Typography>Loading tournament bracket...</Typography>
+        </Box>
+      </Container>
+    );
   }
 
   if (error) {
     return (
       <Container>
-        <Box sx={{ my: 4 }}>
-          <Alert severity="error">{error}</Alert>
-          <Button 
-            component={Link} 
-            to={`/tournaments/${tournamentId}`} 
-            variant="contained"
-            sx={{ mt: 2 }}
-          >
-            Back to Tournament
-          </Button>
-        </Box>
+        <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
       </Container>
     );
   }
@@ -97,17 +152,7 @@ const LiveBracketPage = () => {
   if (!tournament) {
     return (
       <Container>
-        <Box sx={{ my: 4 }}>
-          <Alert severity="warning">Tournament not found</Alert>
-          <Button 
-            component={Link} 
-            to="/tournaments" 
-            variant="contained"
-            sx={{ mt: 2 }}
-          >
-            Back to Tournaments
-          </Button>
-        </Box>
+        <Alert severity="error" sx={{ mt: 2 }}>Tournament not found</Alert>
       </Container>
     );
   }
@@ -115,202 +160,34 @@ const LiveBracketPage = () => {
   if (!bracket || bracket.length === 0) {
     return (
       <Container>
-        <Box sx={{ my: 4 }}>
-          <Typography variant="h4" gutterBottom>
-            {tournament.name} - Bracket
-          </Typography>
-          <Alert severity="info">
-            The bracket for this tournament hasn't been created yet.
-          </Alert>
-          <Button 
-            component={Link} 
-            to={`/tournaments/${tournamentId}`} 
-            variant="contained"
-            sx={{ mt: 2 }}
-          >
-            Back to Tournament Details
-          </Button>
-        </Box>
+        <Alert severity="info" sx={{ mt: 2 }}>Tournament bracket hasn't been created yet</Alert>
       </Container>
     );
   }
 
   return (
     <Container maxWidth="xl">
-      <Box sx={{ my: 4 }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" component="h1">
-            {tournament.name} - Bracket
-          </Typography>
-          <Box>
-            <Chip 
-              label={tournament.status} 
-              color={
-                tournament.status === 'upcoming' ? 'primary' : 
-                tournament.status === 'in_progress' ? 'success' : 'default'
-              }
-              sx={{ mr: 1 }}
-            />
-            <Button 
-              component={Link} 
-              to={`/tournaments/${tournamentId}`} 
-              variant="outlined"
-            >
-              Tournament Details
-            </Button>
-          </Box>
-        </Box>
-
+      <Box sx={{ py: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          {tournament.name} - Live Bracket
+        </Typography>
+        <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+          {formatDate(tournament.start_date)} - {formatDate(tournament.end_date)}
+        </Typography>
+        <Divider sx={{ my: 3 }} />
+        
         <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Paper sx={{ p: 2, overflowX: 'auto' }}>
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'flex-start', 
-                minWidth: bracket.length * 220 + 'px',
-                pb: 2 
-              }}>
-                {bracket.map((round, roundIndex) => (
-                  <Box 
-                    key={round.round} 
-                    sx={{ 
-                      flex: 1,
-                      minWidth: '220px',
-                      maxWidth: '280px',
-                      mx: 1
-                    }}
-                  >
-                    <Typography 
-                      variant="h6" 
-                      sx={{ 
-                        textAlign: 'center', 
-                        my: 2,
-                        fontWeight: 'bold' 
-                      }}
-                    >
-                      {round.round === bracket.length ? 'Championship' : `Round ${round.round}`}
-                    </Typography>
-                    
-                    <Box sx={{ px: 1 }}>
-                      {round.matches.map((match, matchIndex) => (
-                        <Card 
-                          key={match.match_id} 
-                          sx={{ 
-                            mb: 3,
-                            border: match.status === 'in_progress' ? '2px solid #4caf50' : 'none'
-                          }}
-                          elevation={match.status === 'in_progress' ? 4 : 1}
-                        >
-                          <CardContent sx={{ p: 2 }}>
-                            <Box sx={{ mb: 1 }}>
-                              {match.status === 'in_progress' && (
-                                <Chip 
-                                  label="LIVE" 
-                                  size="small" 
-                                  color="success" 
-                                  sx={{ mb: 1 }}
-                                />
-                              )}
-                            </Box>
-
-                            <Box className="team" sx={{ 
-                              p: 1, 
-                              borderRadius: 1,
-                              backgroundColor: match.team1_id ? '#f5f5f5' : 'transparent'
-                            }}>
-                              <Typography 
-                                sx={{ 
-                                  fontWeight: match.team1_id ? 'bold' : 'normal',
-                                  color: match.team1_id ? 'text.primary' : 'text.secondary',
-                                  fontSize: '0.9rem'
-                                }}
-                              >
-                                {getTeamName(match.team1_id)}
-                              </Typography>
-                              {(match.score_team1 > 0 || match.score_team2 > 0) && (
-                                <Typography 
-                                  sx={{ 
-                                    fontWeight: 'bold',
-                                    fontSize: '1.1rem'
-                                  }}
-                                >
-                                  {match.score_team1}
-                                </Typography>
-                              )}
-                            </Box>
-
-                            <Box sx={{ 
-                              textAlign: 'center', 
-                              my: 1, 
-                              fontSize: '0.8rem',
-                              color: 'text.secondary' 
-                            }}>
-                              vs
-                            </Box>
-
-                            <Box className="team" sx={{ 
-                              p: 1, 
-                              borderRadius: 1,
-                              backgroundColor: match.team2_id ? '#f5f5f5' : 'transparent'
-                            }}>
-                              <Typography 
-                                sx={{ 
-                                  fontWeight: match.team2_id ? 'bold' : 'normal',
-                                  color: match.team2_id ? 'text.primary' : 'text.secondary',
-                                  fontSize: '0.9rem'
-                                }}
-                              >
-                                {getTeamName(match.team2_id)}
-                              </Typography>
-                              {(match.score_team1 > 0 || match.score_team2 > 0) && (
-                                <Typography 
-                                  sx={{ 
-                                    fontWeight: 'bold',
-                                    fontSize: '1.1rem'
-                                  }}
-                                >
-                                  {match.score_team2}
-                                </Typography>
-                              )}
-                            </Box>
-
-                            {match.court && (
-                              <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-                                Court: {match.court}
-                              </Typography>
-                            )}
-
-                            {match.status === 'completed' && (
-                              <Box sx={{ mt: 1, textAlign: 'center' }}>
-                                <Chip 
-                                  label="Completed" 
-                                  size="small" 
-                                  variant="outlined"
-                                />
-                              </Box>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12} md={4}>
-            <Box sx={{ height: isMobile ? 'auto' : 'calc(100vh - 240px)' }}>
-              <TournamentUpdatesFeed tournamentId={tournamentId} />
-            </Box>
-          </Grid>
+          {bracket.map((round) => (
+            <Grid item xs={12} md={3} key={round.round}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Typography variant="h6" gutterBottom>
+                  Round {round.round}
+                </Typography>
+                {round.matches.map(renderMatch)}
+              </Paper>
+            </Grid>
+          ))}
         </Grid>
-
-        <Box sx={{ mt: 3 }}>
-          <Alert severity="info">
-            This bracket and updates feed refresh automatically every 30 seconds. Last updated: {moment().format('h:mm:ss A')}
-          </Alert>
-        </Box>
       </Box>
     </Container>
   );

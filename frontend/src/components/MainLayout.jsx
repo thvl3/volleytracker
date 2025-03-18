@@ -80,10 +80,10 @@ const MainLayout = () => {
             <Button 
               color="inherit" 
               component={RouterLink} 
-              to="/login"
+              to="/admin/login"
               sx={{ 
                 mx: 1,
-                opacity: location.pathname === '/login' ? 1 : 0.8,
+                opacity: location.pathname === '/admin/login' ? 1 : 0.8,
                 '&:hover': { opacity: 1 }
               }}
               startIcon={!isMobile && <LoginIcon />}

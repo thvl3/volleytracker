@@ -21,4 +21,4 @@ class Config:
     
     # JWT Settings
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'jwt_secret_change_in_production')
-    JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hour
+    JWT_ACCESS_TOKEN_EXPIRES = 86400  # 24 hours

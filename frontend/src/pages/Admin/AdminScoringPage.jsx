@@ -75,18 +75,18 @@ const AdminScoringPage = () => {
       
       // Get tournament details
       const tournamentResponse = await tournamentAPI.getById(tournamentId);
-      setTournament(tournamentResponse.data);
+      setTournament(tournamentResponse);
       
       // Get active matches
       const inProgressResponse = await matchAPI.getByTournament(tournamentId, 'in_progress');
       const scheduledResponse = await matchAPI.getByTournament(tournamentId, 'scheduled');
-      const activeMatches = [...inProgressResponse.data, ...scheduledResponse.data];
+      const activeMatches = [...inProgressResponse, ...scheduledResponse];
       setMatches(activeMatches);
       
       // Get teams for name lookup
       const teamsResponse = await teamAPI.getByTournament(tournamentId);
       const teamsMap = {};
-      teamsResponse.data.forEach(team => {
+      teamsResponse.forEach(team => {
         teamsMap[team.team_id] = team.team_name;
       });
       setTeams(teamsMap);
@@ -121,16 +121,33 @@ const AdminScoringPage = () => {
     }
     
     try {
+      // Get current set scores
+      const scores_team1 = [...(selectedMatch.scores_team1 || [0, 0, 0])];
+      const scores_team2 = [...(selectedMatch.scores_team2 || [0, 0, 0])];
+      
+      // Find current set (first unfinished set)
+      let currentSet = 0;
+      for (let i = 0; i < scores_team1.length; i++) {
+        if (scores_team1[i] === 0 && scores_team2[i] === 0) {
+          currentSet = i;
+          break;
+        }
+      }
+      
+      // Update current set scores
+      scores_team1[currentSet] = newScore1;
+      scores_team2[currentSet] = newScore2;
+      
       // Update score in the database
-      await matchAPI.updateScore(selectedMatch.match_id, newScore1, newScore2);
+      await matchAPI.updateScore(selectedMatch.match_id, scores_team1, scores_team2);
       
       // Update match in local state
       setMatches(matches.map(match => {
         if (match.match_id === selectedMatch.match_id) {
           return {
             ...match,
-            score_team1: newScore1,
-            score_team2: newScore2,
+            scores_team1,
+            scores_team2,
             status: 'in_progress'
           };
         }
@@ -139,8 +156,8 @@ const AdminScoringPage = () => {
       
       setSelectedMatch({
         ...selectedMatch,
-        score_team1: newScore1,
-        score_team2: newScore2,
+        scores_team1,
+        scores_team2,
         status: 'in_progress'
       });
     } catch (error) {
@@ -160,8 +177,25 @@ const AdminScoringPage = () => {
     try {
       setLoading(true);
       
+      // Get current set scores
+      const scores_team1 = [...(selectedMatch.scores_team1 || [0, 0, 0])];
+      const scores_team2 = [...(selectedMatch.scores_team2 || [0, 0, 0])];
+      
+      // Find current set (first unfinished set)
+      let currentSet = 0;
+      for (let i = 0; i < scores_team1.length; i++) {
+        if (scores_team1[i] === 0 && scores_team2[i] === 0) {
+          currentSet = i;
+          break;
+        }
+      }
+      
+      // Update current set scores
+      scores_team1[currentSet] = score1;
+      scores_team2[currentSet] = score2;
+      
       // Complete the match
-      await matchAPI.updateScore(selectedMatch.match_id, score1, score2, true);
+      await matchAPI.updateScore(selectedMatch.match_id, scores_team1, scores_team2, true);
       
       // Refresh data
       await fetchData();

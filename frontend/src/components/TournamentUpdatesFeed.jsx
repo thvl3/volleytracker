@@ -15,7 +15,7 @@ const TournamentUpdatesFeed = ({ tournamentId }) => {
       try {
         setLoading(true);
         const response = await tournamentAPI.getUpdates(tournamentId);
-        setUpdates(response.data);
+        setUpdates(response);
         setError(null);
       } catch (err) {
         console.error('Error fetching tournament updates:', err);

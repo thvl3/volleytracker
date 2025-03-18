@@ -44,10 +44,7 @@ import {
   EmojiEvents as TrophyIcon
 } from '@mui/icons-material';
 import AdminLayout from '../../components/AdminLayout';
-import { tournamentAPI } from '../../api';
-import { teamAPI } from '../../api';
-import { poolAPI } from '../../api';
-import { locationAPI } from '../../api';
+import { tournamentAPI, teamAPI, poolAPI, locationAPI } from '../../api';
 import { formatDateTime } from '../../utils/dateUtils';
 
 const AdminPoolsPage = () => {
@@ -179,10 +176,24 @@ const AdminPoolsPage = () => {
   const handleCompletePoolPlay = async () => {
     try {
       await poolAPI.completePoolPlay(tournamentId);
-      await poolAPI.createBracketFromPools(tournamentId);
+
+      // Calculate total number of teams in pools
+      const totalTeams = pools.reduce((sum, pool) => sum + (pool.teams?.length || 0), 0);
+      
+      // Determine bracket size based on total teams
+      let bracketSize;
+      if (totalTeams <= 6) {
+        bracketSize = 4;
+      } else if (totalTeams <= 10) {
+        bracketSize = 8;
+      } else {
+        bracketSize = 12;
+      }
+
+      await tournamentAPI.createBracketFromPools(tournamentId, bracketSize);
       
       // Refresh tournament data
-      const tournamentData = await tournamentAPI.getTournament(tournamentId);
+      const tournamentData = await tournamentAPI.getById(tournamentId);
       setTournament(tournamentData);
       
       setOpenCompletionDialog(false);

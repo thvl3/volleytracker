@@ -66,11 +66,11 @@ const AdminTeamsPage = () => {
       
       // Get tournament details
       const tournamentResponse = await tournamentAPI.getById(tournamentId);
-      setTournament(tournamentResponse.data);
+      setTournament(tournamentResponse);
       
       // Get teams
       const teamsResponse = await teamAPI.getByTournament(tournamentId);
-      setTeams(teamsResponse.data);
+      setTeams(teamsResponse);
       
       setError('');
     } catch (error) {
@@ -205,7 +205,7 @@ const AdminTeamsPage = () => {
     return <Loading />;
   }
 
-  if (!tournament) {
+  if (!tournament && error) {
     return (
       <Container>
         <Box sx={{ my: 4 }}>

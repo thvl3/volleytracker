@@ -14,6 +14,7 @@ import AdminMatchesPage from './pages/Admin/AdminMatchesPage';
 import AdminScoringPage from './pages/Admin/AdminScoringPage';
 import TournamentListPage from './pages/TournamentListPage';
 import TournamentDetailPage from './pages/TournamentDetailPage';
+import LiveBracketPage from './pages/LiveBracketPage';
 import { authAPI } from './api';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminLayout from './components/AdminLayout';
@@ -71,11 +72,12 @@ function App() {
           {/* Public Routes */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<HomePage />} />
-            <Route path="/login" element={<AdminLoginPage />} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+            <Route path="/login" element={<Navigate to="/admin/login" replace />} />
             <Route path="/tournaments" element={<TournamentListPage />} />
             <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
             <Route path="/tournaments/:tournamentId/bracket" element={<TournamentDetailPage initialTab={2} />} />
-            <Route path="/tournaments/:tournamentId/live" element={<TournamentDetailPage initialTab={2} />} />
+            <Route path="/tournaments/:tournamentId/live" element={<LiveBracketPage />} />
           </Route>
           
           {/* Admin Routes - Wrapped in AdminLayout */}

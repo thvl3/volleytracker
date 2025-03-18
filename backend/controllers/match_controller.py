@@ -51,16 +51,19 @@ def get_match(match_id):
 def update_score(match_id):
     """Update the score for a match (admin only)"""
     data = request.json
-    score_team1 = data.get('score_team1')
-    score_team2 = data.get('score_team2')
+    scores_team1 = data.get('scores_team1')
+    scores_team2 = data.get('scores_team2')
     
     match = Match.get(match_id)
     if not match:
         return jsonify({'message': 'Match not found'}), 404
     
     # Validate scores
-    if score_team1 is None or score_team2 is None:
-        return jsonify({'message': 'Both scores are required'}), 400
+    if not scores_team1 or not scores_team2:
+        return jsonify({'message': 'Both team scores are required'}), 400
+    
+    if len(scores_team1) != len(scores_team2):
+        return jsonify({'message': 'Both teams must have the same number of set scores'}), 400
     
     # Get team names for the update record
     team1 = Team.get(match.team1_id) if match.team1_id else None
@@ -68,41 +71,46 @@ def update_score(match_id):
     team1_name = team1.team_name if team1 else "TBD"
     team2_name = team2.team_name if team2 else "TBD"
     
-    # Check if this is a score update or match completion
-    if data.get('complete', False):
-        match.update_score(score_team1, score_team2)
-        match.complete_match()
+    try:
+        # Update each set score
+        for set_number, (team1_score, team2_score) in enumerate(zip(scores_team1, scores_team2), 1):
+            match.update_set_score(set_number, team1_score, team2_score)
         
-        # Create match complete update
-        MatchUpdate.create(
-            tournament_id=match.tournament_id,
-            match_id=match.match_id,
-            update_type='match_complete',
-            team1_id=match.team1_id,
-            team2_id=match.team2_id,
-            score_team1=int(score_team1),
-            score_team2=int(score_team2),
-            team1_name=team1_name,
-            team2_name=team2_name
-        )
-    else:
-        # Update score
-        match.update_score(score_team1, score_team2)
+        # Complete the match if requested
+        if data.get('complete', False):
+            match.complete_match()
+            
+            # Create match complete update
+            MatchUpdate.create(
+                tournament_id=match.tournament_id,
+                match_id=match.match_id,
+                update_type='match_complete',
+                team1_id=match.team1_id,
+                team2_id=match.team2_id,
+                score_team1=match.score_team1,
+                score_team2=match.score_team2,
+                team1_name=team1_name,
+                team2_name=team2_name
+            )
+        else:
+            # Create score update record
+            MatchUpdate.create(
+                tournament_id=match.tournament_id,
+                match_id=match.match_id,
+                update_type='score_update',
+                team1_id=match.team1_id,
+                team2_id=match.team2_id,
+                score_team1=match.score_team1,
+                score_team2=match.score_team2,
+                team1_name=team1_name,
+                team2_name=team2_name
+            )
         
-        # Create score update record
-        MatchUpdate.create(
-            tournament_id=match.tournament_id,
-            match_id=match.match_id,
-            update_type='score_update',
-            team1_id=match.team1_id,
-            team2_id=match.team2_id,
-            score_team1=int(score_team1),
-            score_team2=int(score_team2),
-            team1_name=team1_name,
-            team2_name=team2_name
-        )
-    
-    return jsonify(match.to_dict()), 200
+        return jsonify(match.to_dict()), 200
+    except ValueError as e:
+        return jsonify({'message': str(e)}), 400
+    except Exception as e:
+        return jsonify({'message': 'Failed to update match score'}), 500
 
 @match_bp.route('/<match_id>/court', methods=['POST'])
 @require_auth
@@ -135,3 +143,27 @@ def update_schedule(match_id):
     match.update()
     
     return jsonify(match.to_dict()), 200
+
+@match_bp.route('/<match_id>/sets', methods=['POST'])
+@require_auth
+def update_set_score(match_id):
+    """Update the score for a specific set in a match (admin only)"""
+    data = request.json
+    set_number = data.get('set_number')
+    team1_score = data.get('team1_score')
+    team2_score = data.get('team2_score')
+    
+    if not all([set_number, team1_score, team2_score]):
+        return jsonify({'message': 'Set number and both team scores are required'}), 400
+    
+    match = Match.get(match_id)
+    if not match:
+        return jsonify({'message': 'Match not found'}), 404
+    
+    try:
+        match.update_set_score(set_number, team1_score, team2_score)
+        return jsonify(match.to_dict()), 200
+    except ValueError as e:
+        return jsonify({'message': str(e)}), 400
+    except Exception as e:
+        return jsonify({'message': 'Failed to update set score'}), 500

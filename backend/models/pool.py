@@ -2,6 +2,7 @@ import uuid
 import time
 from services.db_service import db_service
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
 class Pool:
     def __init__(self, pool_id=None, tournament_id=None, name=None, 
@@ -10,7 +11,7 @@ class Pool:
         self.tournament_id = tournament_id
         self.name = name or "Pool"  # E.g., "Pool A", "Pool B"
         self.location_id = location_id
-        self.court_number = court_number
+        self.court_number = int(court_number) if court_number is not None and isinstance(court_number, (str, float, Decimal)) else court_number
         self.teams = teams or []  # List of team IDs
         self.created_at = created_at or int(time.time())
     

@@ -130,6 +130,10 @@ export const poolAPI = {
   createBracketFromPools: async (tournamentId) => {
     const response = await axios.post(`${API_URL}/tournaments/${tournamentId}/create-bracket-from-pools`);
     return response.data;
+  },
+  generateTestScores: async (tournamentId) => {
+    const response = await axios.post(`${API_URL}/tournaments/${tournamentId}/generate-test-scores`);
+    return response.data;
   }
 };
 
